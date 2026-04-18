@@ -255,7 +255,9 @@ def _render_run(run: dict) -> str:
                 f'</div>'
             )
 
-    # פאנל תצפית METAR בזמן-אמת (רק ליום הנוכחי שיש לו דיווחי METAR)
+    # פאנל תצפית METAR בזמן-אמת (רק ליום הנוכחי שיש לו דיווחי METAR).
+    # מוסיפים את ה-METAR הגולמי האחרון (מה שסוחרים בפולי-מארקט ציטטו לאורך כל הדיון),
+    # וגם קישור לדף ההיסטוריה של Wunderground — הדף שממנו החוזה מיושב.
     obs = run.get("observation") or {}
     obs_panel = ""
     if obs.get("observed_max_int") is not None:
@@ -266,12 +268,28 @@ def _render_run(run: dict) -> str:
         ltemp = obs.get("latest_temp")
         hr   = obs.get("hours_remaining", 0)
         rfc  = obs.get("remaining_forecast_max")
+        raw  = obs.get("raw_sample")
         post_peak = rfc is None or om >= rfc
         state_txt = "השיא היומי כבר עבר — התוצאה כמעט נעולה." if post_peak else "השיא היומי עדיין יכול לקרות בשעות שנותרו."
         rem_html = (f'תחזית לשעות שנותרו: <strong>{rfc:.1f}°C</strong>. '
                     if rfc is not None else '')
         latest_html = (f'דיווח אחרון בשעה <strong>{_esc(lt)}</strong>: '
                        f'<strong>{ltemp}°C</strong>. ' if ltemp is not None else '')
+        raw_html = (f'<div class="metar-raw">METAR גולמי: <code>{_esc(raw)}</code></div>'
+                    if raw else '')
+        # קישור לטבלה ההיסטורית של Wunderground — הטבלה שממנה Polymarket מיישב
+        wu_date = run["target_date"].replace("-", "-")  # כבר בפורמט נכון
+        try:
+            ymd = run["target_date"].split("-")
+            wu_url = f"https://www.wunderground.com/history/daily/gb/london/EGLC/date/{int(ymd[0])}-{int(ymd[1])}-{int(ymd[2])}"
+        except Exception:
+            wu_url = "https://www.wunderground.com/history/daily/gb/london/EGLC"
+        wu_html = (f'<div class="wu-link">'
+                   f'לאימות עצמאי: <a href="{wu_url}" target="_blank" rel="noopener">'
+                   f'טבלת ההיסטוריה של Wunderground ל-EGLC</a> (מקור היישוב של Polymarket). '
+                   f'שים לב — התצוגה החיה של WU יכולה להראות ערך גבוה יותר מהטבלה '
+                   f'ההיסטורית. ההחלטה נעשית לפי הטבלה ההיסטורית ולא לפי התצוגה.'
+                   f'</div>')
         obs_panel = (
             f'<div class="banner banner--obs">'
             f'🌡️ <strong>תצפית METAR חיה (תחנת EGLC)</strong>: '
@@ -281,6 +299,8 @@ def _render_run(run: dict) -> str:
             f'{rem_html}'
             f'{state_txt} '
             f'{_info("observed")}'
+            f'{raw_html}'
+            f'{wu_html}'
             f'</div>'
         )
 
@@ -425,8 +445,15 @@ def _render_intro() -> str:
           <li><strong>יתרון (Edge)</strong> — הפער בין ההסתברות שלנו למחיר בשוק. 3% ומעלה = קנייה.</li>
           <li><strong>Kelly</strong> — אחוז מהבנקרול שמומלץ להשקיע בחוזה בודד.</li>
           <li><strong>מודל חריג (⚠)</strong> — מודל שחרג יותר מ-2°C מהחציון הוסר מהחישוב.</li>
+          <li><strong>METAR חי</strong> — המקור הגולמי של דיווחי טמפרטורה מתחנת EGLC, מדווח במעלות שלמות כל 30 דקות. זה המקור ש-Wunderground מכניס לטבלה ההיסטורית שלה, ושממנו Polymarket מיישב.</li>
           <li><strong>איכות מודלים</strong> — טבלת דיוק שנבנית לאורך זמן מול תצפיות בפועל.</li>
         </ul>
+        <p class="small">
+          <strong style="color:var(--warn)">⚠ מלכודת נפוצה</strong>:
+          התצוגה החיה של Wunderground יכולה להראות ערך כמו 17°C כשכל ה-METAR-ים
+          של היום דיווחו 16°C. המלצה: לאמת תמיד מול טבלת ההיסטוריה של WU (הקישור מופיע
+          בפאנל ה-METAR ליד התצפית) — לא מול הערך החי.
+        </p>
         <p class="muted small">
           גלילה אל מעל כל תווית עם סימן ⓘ כדי לקבל הסבר קצר על המדד.
         </p>
@@ -508,6 +535,13 @@ def render_dashboard(payload: dict) -> str:
     background:color-mix(in srgb, #6AB4E0 10%, transparent);
     color:color-mix(in srgb, #9BD3F2 80%, white); line-height:1.7; }}
   .banner--obs strong {{ color:#9BD3F2; }}
+  .metar-raw {{ margin-top:8px; font-size:12px; opacity:0.85; }}
+  .metar-raw code {{ background:#0B1114; color:var(--mint);
+    padding:2px 6px; border-radius:4px; font-family:'Consolas','Courier New',monospace;
+    direction:ltr; unicode-bidi:embed; }}
+  .wu-link {{ margin-top:8px; font-size:12px; padding-top:8px;
+    border-top:1px dashed color-mix(in srgb, #6AB4E0 30%, transparent); }}
+  .wu-link a {{ color:#9BD3F2; text-decoration:none; border-bottom:1px dotted #9BD3F2; }}
   .banner--diverge {{ border-color:var(--neg);
     background:color-mix(in srgb, var(--neg) 8%, transparent);
     color:color-mix(in srgb, var(--neg) 75%, white); line-height:1.6; }}
