@@ -9,3 +9,13 @@ Thumbs.db
 .vscode/
 .idea/
 .claude/
+
+# קבצי פלט שנוצרים מחדש בכל הרצה — לא לעקוב אחריהם ב-git
+docs/data.json
+docs/index.html
+
+# נשמרים ב-git (state בין הרצות):
+# - docs/forecasts.jsonl   (לוג תחזיות, דרוש למדדי דיוק)
+# - docs/observations.json (תצפיות סגורות של ימים שחלפו)
+# - docs/history.json      (היסטוריית הרצות תמציתית)
+# - docs/accuracy.json     (סנאפשוט נוכחי של מדדי דיוק)

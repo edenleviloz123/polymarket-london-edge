@@ -12,7 +12,7 @@ on:
       - ".github/workflows/scan.yml"
 
 permissions:
-  contents: read
+  contents: write   # נדרש כדי לדחוף בחזרה את קבצי ה-state
   pages: write
   id-token: write
 
@@ -38,6 +38,31 @@ jobs:
 
       - name: Run scanner
         run: python main.py
+
+      - name: Persist state files back to main
+        # שומר את forecasts.jsonl / observations.json / history.json / accuracy.json
+        # כדי שמעקב הדיוק יצטבר בין הרצות. ה-workflow לא יורץ מחדש בגלל הפוש הזה
+        # כי מסנן ה-paths ב-`on: push` לא כולל קבצי docs.
+        run: |
+          set -e
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/forecasts.jsonl docs/observations.json \
+                  docs/history.json    docs/accuracy.json 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "אין שינויים ב-state לקומיט."
+          else
+            git commit -m "chore(state): snapshot $(date -u +'%Y-%m-%dT%H:%MZ') [skip ci]"
+            # retry קצר במקרה של race עם פוש מקביל
+            for i in 1 2 3; do
+              if git push; then
+                exit 0
+              fi
+              echo "push נכשל (ניסיון $i) — מושכים מחדש ומנסים שוב"
+              git pull --rebase
+            done
+            echo "push נכשל אחרי 3 ניסיונות — ממשיכים בלי לחסום את deploy"
+          fi
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
