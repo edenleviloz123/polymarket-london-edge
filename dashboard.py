@@ -28,6 +28,8 @@ ACTION_COLOR = {
 
 # הסברים קצרים שיופיעו בטולטיפ ובמדריך הראשי
 HELP = {
+    "arbitrage":     "הזדמנות רווח מובטח שלא תלויה בתחזית. קורית כשסכום מחירי ה-YES של כל ה-buckets רחוק מ-100%. דורשת נזילות מספיקה לביצוע מיידי של כל 11 העסקאות.",
+    "bid_ask":       "bestBid הוא המחיר שבו תוכל למכור עכשיו, bestAsk הוא המחיר שבו תוכל לקנות. הפער ביניהם נאכל על ידי מי שלוקח את הצד הנגדי.",
     "consensus":     "ממוצע חשבוני של תחזיות המודלים הזמינים באותו יום, לאחר הסרת חריגים.",
     "sigma":         "סטיית תקן בין המודלים. ככל שהיא גבוהה, יש יותר חוסר הסכמה ופחות ביטחון.",
     "ensemble":      "50 חברי ECMWF EPS (Ensemble Prediction System) — כל אחד הוא ריצה עצמאית של המודל עם תנאי התחלה מעוותים מעט. סטיית התקן ביניהם היא מדד סטטיסטי אמיתי של אי-הוודאות, ומחליפה ניחוש שרירותי של σ.",
@@ -70,6 +72,60 @@ def _pct(v: Optional[float], digits=1, signed=True) -> str:
 def _info(key: str) -> str:
     """מחזיר טולטיפ קצר עם סימן מידע קטן ליד תווית."""
     return f'<span class="info" title="{_esc(HELP[key])}">ⓘ</span>'
+
+
+def _render_arbitrage(arb: Optional[dict]) -> str:
+    """פאנל לזיהוי ארביטראז' — רווח מובטח מתימחור לא-עקבי של השוק."""
+    if not arb:
+        return ""
+
+    n = arb.get("n_buckets", 0)
+    has_opp = arb.get("has_opportunity", False)
+
+    if not has_opp:
+        reason = arb.get("reason_if_none") or ""
+        sum_bid = arb.get("sum_yes_bid")
+        sum_ask = arb.get("sum_yes_ask")
+        summary = ""
+        if sum_bid is not None and sum_ask is not None:
+            summary = (f" (סכום YES-bid = <strong>{sum_bid*100:.1f}%</strong>, "
+                       f"YES-ask = <strong>{sum_ask*100:.1f}%</strong>)")
+        return (f'<div class="arb arb--none">'
+                f'<strong>ארביטראז׳ {_info("arbitrage")}</strong>: אין כרגע. '
+                f'{_esc(reason)}{summary}'
+                f'</div>')
+
+    strategy = arb.get("best_strategy")
+    profit = arb.get("best_profit_usd", 0) * 100   # סנטים לבונדל
+    cost   = arb.get("best_cost_usd", 0) * 100
+    roi    = arb.get("roi", 0) * 100
+
+    if strategy == "sell_yes":
+        title  = "מכירת YES על כל 11 החוזים (או בשפה אחרת: קניית NO על כולם)"
+        detail = (f'סכום מחירי ה-YES-bid: <strong>{arb["sum_yes_bid"]*100:.1f}%</strong> '
+                  f'(מעל 100%, סימן לעקביות שגויה של השוק).')
+    else:
+        title  = "קנייה של YES על כל 11 החוזים"
+        detail = (f'סכום מחירי ה-YES-ask: <strong>{arb["sum_yes_ask"]*100:.1f}%</strong> '
+                  f'(מתחת ל-100%, השוק מתמחר בחסר).')
+
+    return f"""
+    <div class="arb arb--yes">
+      <div class="arb__head">
+        <strong>🎯 ארביטראז׳ זמין {_info("arbitrage")}</strong>
+        <span class="arb__profit">רווח מובטח: {profit:.1f} סנט לבונדל · ROI כ-{roi:.1f}%</span>
+      </div>
+      <div class="arb__body">
+        <div class="arb__recipe">אסטרטגיה: {_esc(title)}</div>
+        <div>{detail}</div>
+        <div class="arb__caveats">
+          חישוב מבוסס bestBid ו-bestAsk מה-API של Polymarket. עלול להיות רדוד בפועל.
+          צריך לבצע את כל {n} העסקאות במקביל כדי לנעול את הרווח.
+          Polymarket גובה 2% על המרת USDC שאוכלת חלק מהמרווח.
+        </div>
+      </div>
+    </div>
+    """
 
 
 def _render_ensemble_stat(ens: Optional[dict]) -> str:
@@ -368,6 +424,8 @@ def _render_run(run: dict) -> str:
 
       {_render_edges_table(run.get("edges") or [],
                            best_label, likely_label, best_edge_label)}
+
+      {_render_arbitrage(run.get("arbitrage"))}
     </section>
     """
 
@@ -581,6 +639,20 @@ def render_dashboard(payload: dict) -> str:
     border:1px solid color-mix(in srgb, var(--mint) 30%, transparent);
     border-radius:8px; font-size:13px; line-height:1.6; }}
   .ens-box strong {{ color:var(--mint); }}
+
+  .arb {{ margin-top:16px; padding:12px 14px; border-radius:8px;
+    border:1px solid var(--border); font-size:13px; line-height:1.6; }}
+  .arb--none {{ background:#0F1518; color:var(--muted); }}
+  .arb--none strong {{ color:var(--text); }}
+  .arb--yes {{ background:color-mix(in srgb, #F2C94C 10%, transparent);
+    border-color:#F2C94C; }}
+  .arb--yes strong {{ color:#F2C94C; }}
+  .arb__head {{ display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px;
+    align-items:baseline; margin-bottom:6px; }}
+  .arb__profit {{ color:#F2C94C; font-weight:700; }}
+  .arb__recipe {{ font-weight:600; color:var(--text); margin-bottom:4px; }}
+  .arb__caveats {{ font-size:12px; color:var(--muted); margin-top:8px;
+    padding-top:8px; border-top:1px dashed color-mix(in srgb, #F2C94C 30%, transparent); }}
 
   .chips {{ display:flex; gap:6px; flex-wrap:wrap; }}
   .chip {{ display:inline-flex; gap:6px; padding:4px 10px; border:1px solid var(--border);

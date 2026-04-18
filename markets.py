@@ -105,8 +105,26 @@ def _as_float(x, default=0.0) -> float:
         return default
 
 
+def _as_opt_float(x) -> Optional[float]:
+    if x is None:
+        return None
+    try:
+        v = float(x)
+        return v if 0 <= v <= 1 else None
+    except (TypeError, ValueError):
+        return None
+
+
 def event_to_contracts(event: dict) -> List[dict]:
-    """מחלץ רשימת חוזים סדורה מאירוע Polymarket מרובה-תוצאות."""
+    """
+    מחלץ רשימת חוזים סדורה מאירוע Polymarket מרובה-תוצאות,
+    כולל bestBid / bestAsk אמיתיים לחישוב ארביטראז' מדויק.
+
+    Polymarket על כל bucket הוא שוק binary. כלל ה-AMM שלו קובע
+    yes_price + no_price = 1 לכל bucket. לכן:
+      no_ask_i  = 1 - yes_bid_i
+      no_bid_i  = 1 - yes_ask_i
+    """
     contracts = []
     for m in event.get("markets", []) or []:
         label = m.get("groupItemTitle") or m.get("question") or ""
@@ -117,16 +135,24 @@ def event_to_contracts(event: dict) -> List[dict]:
         if not prices or len(prices) < 2:
             continue
         yes_price = _yes_price(m, prices)
+        best_bid  = _as_opt_float(m.get("bestBid"))   # מחיר המכירה הגבוה ביותר
+        best_ask  = _as_opt_float(m.get("bestAsk"))   # מחיר הקנייה הנמוך ביותר
+        last_px   = _as_opt_float(m.get("lastTradePrice"))
+        spread    = _as_opt_float(m.get("spread"))
         volume    = _as_float(m.get("volumeNum")    or m.get("volume"))
         liquidity = _as_float(m.get("liquidityNum") or m.get("liquidity"))
         contracts.append({
-            "bucket":    bucket,
-            "yes_price": yes_price,
-            "no_price":  1.0 - yes_price,
-            "volume":    volume,
-            "liquidity": liquidity,
-            "question":  m.get("question"),
-            "slug":      m.get("slug"),
+            "bucket":           bucket,
+            "yes_price":        yes_price,       # outcomePrices — מחיר משוער / mid
+            "no_price":         1.0 - yes_price,
+            "yes_best_bid":     best_bid,        # מה תקבל אם תמכור YES
+            "yes_best_ask":     best_ask,        # מה תשלם אם תקנה YES
+            "yes_last_trade":   last_px,
+            "spread":           spread,
+            "volume":           volume,
+            "liquidity":        liquidity,
+            "question":         m.get("question"),
+            "slug":             m.get("slug"),
         })
     # סידור: below ראשון, אח"כ singles לפי טמפ', בסוף above
     type_order = {"below": 0, "single": 1, "above": 2}

@@ -16,6 +16,7 @@ from typing import Optional
 from accuracy import (
     append_forecast_snapshot, compute_model_scores, refresh_observations,
 )
+from arbitrage import compute_arbitrage
 from config import (
     HISTORY_JSON, HISTORY_MAX_ENTRIES,
     MIN_MODELS_REQUIRED,
@@ -109,6 +110,8 @@ def run_for_date(target_date: dt.date, forecasts: dict, ts_iso: str,
     elif not contracts:
         signal["rationale"] = "אירוע Polymarket לא נמצא או אין בו חוזים סחירים לתאריך זה."
 
+    arbitrage = compute_arbitrage(contracts) if contracts else None
+
     return {
         "target_date": target_date.isoformat(),
         "consensus":   cons,
@@ -118,6 +121,7 @@ def run_for_date(target_date: dt.date, forecasts: dict, ts_iso: str,
         "edges":       edges,
         "signal":      signal,
         "observation": observation,
+        "arbitrage":   arbitrage,
     }
 
 
