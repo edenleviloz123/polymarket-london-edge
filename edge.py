@@ -122,7 +122,8 @@ def expected_value(p: float, yes_price: float) -> float:
 
 
 def compute_edges(contracts: List[dict], mu: float, sigma: Optional[float],
-                   observation: Optional[dict] = None) -> List[dict]:
+                   observation: Optional[dict] = None,
+                   ensemble_std: Optional[float] = None) -> List[dict]:
     """
     מחשב Edge לכל חוזה.
 
@@ -134,7 +135,9 @@ def compute_edges(contracts: List[dict], mu: float, sigma: Optional[float],
         כאשר future_peak ~ N(remaining_mu, POST_PEAK_SIGMA).
 
     (2) forecast-only (ליום עתידי):
-        הערך μ מהקונצנזוס של 5 מודלים, σ = max(inter_model, MIN_SIGMA).
+        μ מהקונצנזוס של 5 מודלים.
+        σ אפקטיבי = max(σ_בין-מודלים, σ_ensemble, MIN_SIGMA).
+        σ_ensemble הוא מדד סטטיסטי אמיתי של אי-ודאות (מ-50 חברי ECMWF EPS).
     """
     results = []
     observed_max_int = None
@@ -146,9 +149,12 @@ def compute_edges(contracts: List[dict], mu: float, sigma: Optional[float],
         observed_max_int = int(observation["observed_max_int"])
         rem_fc = observation.get("remaining_forecast_max")
         remaining_mu = rem_fc
-        # "שיא כבר עבר" אם ה-METAR הנמדד כבר גבוה מהתחזית לשעות שנותרו
         if rem_fc is None or observed_max_int >= rem_fc:
             post_peak = True
+
+    # σ אפקטיבי למסלול forecast-only: המקסימום מבין שלושה מדדים
+    sigma_sources = [sigma or 0.0, ensemble_std or 0.0, MIN_SIGMA]
+    eff_sigma_forecast = max(sigma_sources)
 
     for c in contracts:
         if observed_max_int is not None:
@@ -156,7 +162,7 @@ def compute_edges(contracts: List[dict], mu: float, sigma: Optional[float],
                 c["bucket"], observed_max_int, remaining_mu, remaining_sigma)
             eff_sigma = remaining_sigma
         else:
-            eff_sigma = max(sigma or 0.0, MIN_SIGMA)
+            eff_sigma = eff_sigma_forecast
             p = bucket_probability(c["bucket"], mu, eff_sigma)
         edge = p - c["yes_price"]
         results.append({

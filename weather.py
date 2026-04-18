@@ -68,6 +68,74 @@ def fetch_forecasts(forecast_days: int = 4) -> Dict[str, Dict[str, Optional[floa
     return result
 
 
+def fetch_ensemble_spread(target_date: dt.date,
+                           forecast_days: int = 3) -> Optional[dict]:
+    """
+    שולף ECMWF EPS (50 חברים) לתאריך היעד ומחזיר:
+      {mean, std, n_members, min, max, target_date}
+    ה-std הוא מדד סטטיסטי אמיתי של אי-הוודאות בתחזית לאותו יום.
+    None אם פחות מ-ENSEMBLE_MIN_MEMBERS חברים החזירו ערכים תקפים.
+    """
+    from config import ENSEMBLE_MIN_MEMBERS, ENSEMBLE_MODEL, OPEN_METEO_ENSEMBLE_URL
+
+    params = {
+        "latitude":         LAT,
+        "longitude":        LON,
+        "daily":            "temperature_2m_max",
+        "temperature_unit": "celsius",
+        "models":           ENSEMBLE_MODEL,
+        "timezone":         TIMEZONE,
+        "forecast_days":    forecast_days,
+    }
+    try:
+        data = _http_get(OPEN_METEO_ENSEMBLE_URL, params)
+    except Exception as e:
+        log.warning("שליפת EPS נכשלה: %s", e)
+        return None
+
+    daily = data.get("daily") or {}
+    dates = daily.get("time") or []
+    tgt = target_date.isoformat()
+    if tgt not in dates:
+        return None
+    idx = dates.index(tgt)
+
+    # אוספים את כל ערכי ה-members לאותו יום
+    values = []
+    for key, series in daily.items():
+        if not key.startswith("temperature_2m_max"):
+            continue
+        # יש גם "temperature_2m_max" (ממוצע ה-control run) וגם _memberXX
+        if "_member" not in key:
+            continue
+        if idx >= len(series):
+            continue
+        v = series[idx]
+        if v is None:
+            continue
+        if not (TEMP_SANITY_MIN <= v <= TEMP_SANITY_MAX):
+            continue
+        values.append(float(v))
+
+    if len(values) < ENSEMBLE_MIN_MEMBERS:
+        log.info("EPS: רק %d חברים תקפים לתאריך %s — מתחת לסף",
+                 len(values), tgt)
+        return None
+
+    n = len(values)
+    mean = sum(values) / n
+    var = sum((v - mean) ** 2 for v in values) / (n - 1)
+    std = var ** 0.5
+    return {
+        "mean":       mean,
+        "std":        std,
+        "n_members":  n,
+        "min":        min(values),
+        "max":        max(values),
+        "target_date": tgt,
+    }
+
+
 def fetch_remaining_hourly_forecast(now) -> Optional[dict]:
     """
     שולף את תחזית הטמפ' השעתית לשעות שנותרו היום (מ-now עד סוף יום מקומי).

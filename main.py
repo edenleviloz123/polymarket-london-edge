@@ -31,7 +31,8 @@ from markets import (
 )
 from metar import fetch_metar_observations
 from weather import (
-    consensus, detect_outliers, fetch_forecasts,
+    consensus, detect_outliers,
+    fetch_ensemble_spread, fetch_forecasts,
     fetch_remaining_hourly_forecast,
 )
 
@@ -70,10 +71,13 @@ def find_event_for_date(target_date: dt.date) -> Optional[dict]:
 
 
 def run_for_date(target_date: dt.date, forecasts: dict, ts_iso: str,
-                 observation: Optional[dict] = None) -> dict:
+                 observation: Optional[dict] = None,
+                 ensemble: Optional[dict] = None) -> dict:
     per_model = forecasts.get(target_date.isoformat(), {})
     outliers = detect_outliers(per_model, OUTLIER_THRESHOLD_C)
     cons = consensus(per_model, outliers=outliers)
+    if ensemble:
+        cons["ensemble"] = ensemble  # מצורף לקונצנזוס לתצוגה + שקיפות
 
     # לוג התחזית בכל הרצה (כולל חריגים, כדי שנוכל לצבור דיוק היסטורי)
     append_forecast_snapshot(
@@ -92,8 +96,10 @@ def run_for_date(target_date: dt.date, forecasts: dict, ts_iso: str,
         "rationale": "אין מספיק נתוני מודלים או חוזים כדי להסיק איתות.",
     }
     if cons["n"] >= MIN_MODELS_REQUIRED and cons["mean"] is not None and contracts:
+        ensemble_std = (ensemble or {}).get("std")
         edges = compute_edges(contracts, cons["mean"], cons["std"],
-                              observation=observation)
+                              observation=observation,
+                              ensemble_std=ensemble_std)
         signal = classify_signal(edges)
     elif cons["n"] < MIN_MODELS_REQUIRED:
         signal["rationale"] = (
@@ -175,8 +181,23 @@ def main():
                  observation_today["remaining_forecast_max"])
 
     target_dates = [today, today + dt.timedelta(days=1)]
+
+    # ECMWF EPS — 50 חברי ensemble לכל תאריך, כדי לאמוד σ סטטיסטי
+    ensembles = {}
+    for d in target_dates:
+        try:
+            eps = fetch_ensemble_spread(d)
+            if eps:
+                ensembles[d.isoformat()] = eps
+                log.info("EPS %s: %d חברים, mean=%.2f°C, std=%.2f°C, range=%.1f-%.1f",
+                         d.isoformat(), eps["n_members"],
+                         eps["mean"], eps["std"], eps["min"], eps["max"])
+        except Exception as e:
+            log.warning("EPS נכשל לתאריך %s: %s", d, e)
+
     runs = [run_for_date(d, forecasts, ts_iso,
-                         observation=(observation_today if d == today else None))
+                         observation=(observation_today if d == today else None),
+                         ensemble=ensembles.get(d.isoformat()))
             for d in target_dates]
 
     # רענון תצפיות לתאריכים שחלפו + חישוב מדדי דיוק

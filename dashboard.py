@@ -30,6 +30,7 @@ ACTION_COLOR = {
 HELP = {
     "consensus":     "ממוצע חשבוני של תחזיות המודלים הזמינים באותו יום, לאחר הסרת חריגים.",
     "sigma":         "סטיית תקן בין המודלים. ככל שהיא גבוהה, יש יותר חוסר הסכמה ופחות ביטחון.",
+    "ensemble":      "50 חברי ECMWF EPS (Ensemble Prediction System) — כל אחד הוא ריצה עצמאית של המודל עם תנאי התחלה מעוותים מעט. סטיית התקן ביניהם היא מדד סטטיסטי אמיתי של אי-הוודאות, ומחליפה ניחוש שרירותי של σ.",
     "available":     "כמה מתוך חמשת המודלים הגיבו ולא סומנו כחריגים.",
     "prob_ours":     "ההסתברות שחישבנו שהטמפ' המקסימלית תיפול בדיוק ב-bucket הזה, לפי התפלגות נורמלית.",
     "market_price":  "המחיר הנוכחי לקניית YES באותו חוזה ב-Polymarket. מייצג את ההסתברות שהשוק מתמחר.",
@@ -69,6 +70,27 @@ def _pct(v: Optional[float], digits=1, signed=True) -> str:
 def _info(key: str) -> str:
     """מחזיר טולטיפ קצר עם סימן מידע קטן ליד תווית."""
     return f'<span class="info" title="{_esc(HELP[key])}">ⓘ</span>'
+
+
+def _render_ensemble_stat(ens: Optional[dict]) -> str:
+    if not ens or ens.get("std") is None:
+        return ""
+    return (f'<div>'
+            f'<span class="muted">EPS σ (ECMWF ensemble) {_info("ensemble")}</span>'
+            f'<strong>{ens["std"]:.2f}°C</strong>'
+            f'</div>')
+
+
+def _render_ensemble_box(ens: Optional[dict]) -> str:
+    if not ens:
+        return ""
+    return (f'<div class="ens-box">'
+            f'<strong>ECMWF EPS</strong> — '
+            f'{ens["n_members"]} חברי ensemble: '
+            f'ממוצע <strong>{ens["mean"]:.2f}°C</strong>, '
+            f'טווח <strong>{ens["min"]:.1f}°C עד {ens["max"]:.1f}°C</strong>, '
+            f'σ סטטיסטי <strong>{ens["std"]:.2f}°C</strong>'
+            f'</div>')
 
 
 def _render_model_chips(cons: dict) -> str:
@@ -338,8 +360,10 @@ def _render_run(run: dict) -> str:
             <span class="muted">מודלים זמינים {_info('available')}</span>
             <strong>{n} / {total_models}</strong>
           </div>
+          {_render_ensemble_stat(cons.get("ensemble"))}
         </div>
         <div class="chips">{_render_model_chips(cons)}</div>
+        {_render_ensemble_box(cons.get("ensemble"))}
       </div>
 
       {_render_edges_table(run.get("edges") or [],
@@ -551,6 +575,12 @@ def render_dashboard(payload: dict) -> str:
   .consensus__stats {{ display:flex; gap:22px; flex-wrap:wrap; }}
   .consensus__stats div {{ display:flex; flex-direction:column; gap:2px; }}
   .consensus__stats strong {{ font-size:18px; color:var(--text); }}
+
+  .ens-box {{ width:100%; margin-top:10px; padding:8px 12px;
+    background:color-mix(in srgb, var(--mint) 6%, transparent);
+    border:1px solid color-mix(in srgb, var(--mint) 30%, transparent);
+    border-radius:8px; font-size:13px; line-height:1.6; }}
+  .ens-box strong {{ color:var(--mint); }}
 
   .chips {{ display:flex; gap:6px; flex-wrap:wrap; }}
   .chip {{ display:inline-flex; gap:6px; padding:4px 10px; border:1px solid var(--border);
