@@ -29,7 +29,11 @@ from markets import (
     broad_scan, build_candidate_slugs,
     event_to_contracts, fetch_event_by_slug,
 )
-from weather import consensus, detect_outliers, fetch_forecasts
+from metar import fetch_metar_observations
+from weather import (
+    consensus, detect_outliers, fetch_forecasts,
+    fetch_remaining_hourly_forecast,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -65,7 +69,8 @@ def find_event_for_date(target_date: dt.date) -> Optional[dict]:
     return None
 
 
-def run_for_date(target_date: dt.date, forecasts: dict, ts_iso: str) -> dict:
+def run_for_date(target_date: dt.date, forecasts: dict, ts_iso: str,
+                 observation: Optional[dict] = None) -> dict:
     per_model = forecasts.get(target_date.isoformat(), {})
     outliers = detect_outliers(per_model, OUTLIER_THRESHOLD_C)
     cons = consensus(per_model, outliers=outliers)
@@ -87,7 +92,8 @@ def run_for_date(target_date: dt.date, forecasts: dict, ts_iso: str) -> dict:
         "rationale": "אין מספיק נתוני מודלים או חוזים כדי להסיק איתות.",
     }
     if cons["n"] >= MIN_MODELS_REQUIRED and cons["mean"] is not None and contracts:
-        edges = compute_edges(contracts, cons["mean"], cons["std"])
+        edges = compute_edges(contracts, cons["mean"], cons["std"],
+                              observation=observation)
         signal = classify_signal(edges)
     elif cons["n"] < MIN_MODELS_REQUIRED:
         signal["rationale"] = (
@@ -105,6 +111,7 @@ def run_for_date(target_date: dt.date, forecasts: dict, ts_iso: str) -> dict:
                          "endDate": ev.get("endDate")} if ev else None),
         "edges":       edges,
         "signal":      signal,
+        "observation": observation,
     }
 
 
@@ -134,8 +141,43 @@ def main():
         log.error("שליפת תחזיות נכשלה לחלוטין: %s", e)
         forecasts = {}
 
+    # תצפיות אמיתיות של היום: METAR חי מתחנת EGLC (מקור הרזולוציה של Polymarket)
+    # + תחזית שעתית לשעות שנותרו (לחישוב הסתברות לחציית השיא עד סוף היום).
+    observation_today = None
+    try:
+        metar = fetch_metar_observations(now)
+    except Exception as e:
+        log.warning("METAR fetch exception: %s", e)
+        metar = None
+    try:
+        remaining = fetch_remaining_hourly_forecast(now)
+    except Exception as e:
+        log.warning("שליפת תחזית שעות-שנותרו נכשלה: %s", e)
+        remaining = None
+
+    if metar:
+        observation_today = {
+            "observed_max_int":       metar["observed_max_int"],
+            "peak_time_local":        metar.get("peak_time_local"),
+            "report_count":           metar.get("report_count"),
+            "latest_time_local":      metar.get("latest_time_local"),
+            "latest_temp":            metar.get("latest_temp"),
+            "raw_sample":             metar.get("raw_sample"),
+            "remaining_forecast_max": (remaining or {}).get("remaining_forecast_max"),
+            "hours_remaining":        (remaining or {}).get("hours_remaining", 0),
+        }
+        log.info("METAR היום: max=%d°C (שיא בשעה %s, %d דיווחים). "
+                 "נותרו %d שעות עם תחזית max=%s°C",
+                 metar["observed_max_int"],
+                 metar.get("peak_time_local"),
+                 metar.get("report_count"),
+                 observation_today["hours_remaining"],
+                 observation_today["remaining_forecast_max"])
+
     target_dates = [today, today + dt.timedelta(days=1)]
-    runs = [run_for_date(d, forecasts, ts_iso) for d in target_dates]
+    runs = [run_for_date(d, forecasts, ts_iso,
+                         observation=(observation_today if d == today else None))
+            for d in target_dates]
 
     # רענון תצפיות לתאריכים שחלפו + חישוב מדדי דיוק
     try:

@@ -43,6 +43,8 @@ HELP = {
     "hit_1c":        "אחוז הימים שהמודל חזה בטווח של ±1°C מהמדידה בפועל.",
     "rank_avg":      "דירוג ממוצע. 1 = הכי מדויק באותו יום. נמוך יותר = עקבי יותר.",
     "action":        "המלצת הפעולה על בסיס היתרון הגבוה ביותר בטבלה. הסף לקנייה הוא 3%.",
+    "observed":      "הטמפ' המקסימלית שכבר נמדדה היום עד השעה הנוכחית. המודל מתייחס אליה כאל חסם תחתון — המקסימום היומי לא יכול להיות נמוך ממנה.",
+    "post_peak":     "סימון שהשיא היומי כבר עבר (התצפית גבוהה מהתחזית לשעות הנותרות). במצב הזה אי-הוודאות קטנה משמעותית.",
 }
 
 
@@ -234,6 +236,54 @@ def _render_run(run: dict) -> str:
             f'</div>'
         )
 
+    # אזהרת אי-התאמה לשוק: כשההסתברות שלנו וה-YES בשוק רחוקים
+    # מאוד זה מזה עבור אותו bucket דומיננטי. שני הכיוונים אפשריים:
+    # (א) השוק יודע משהו שאנחנו לא (תצפית שטרם נקלטה, מזג אוויר חריג)
+    # (ב) המודל שלנו משקלל לא-נכון פרמטרים
+    divergence_banner = ""
+    if most_likely and most_likely.get("our_prob", 0) > 0.5:
+        ours = most_likely["our_prob"]
+        mkt  = most_likely["yes_price"]
+        if abs(ours - mkt) > 0.30:
+            direction = "מעריך את האירוע הזה כהרבה יותר סביר מהשוק" if ours > mkt else "מעריך את האירוע הזה כהרבה פחות סביר מהשוק"
+            divergence_banner = (
+                f'<div class="banner banner--diverge">'
+                f'⚠ אי-התאמה משמעותית לשוק: המודל {direction} '
+                f'(שלנו {ours*100:.0f}% מול {mkt*100:.0f}% בשוק). '
+                f'ייתכן שהשוק רואה נתוני METAR/מזג אוויר שעדיין לא נקלטו אצלנו, '
+                f'או שהמודל שוקל פחות טוב. יש להתייחס להמלצה בזהירות.'
+                f'</div>'
+            )
+
+    # פאנל תצפית METAR בזמן-אמת (רק ליום הנוכחי שיש לו דיווחי METAR)
+    obs = run.get("observation") or {}
+    obs_panel = ""
+    if obs.get("observed_max_int") is not None:
+        om   = obs["observed_max_int"]
+        pt   = obs.get("peak_time_local") or "—"
+        rpt  = obs.get("report_count", 0)
+        lt   = obs.get("latest_time_local") or "—"
+        ltemp = obs.get("latest_temp")
+        hr   = obs.get("hours_remaining", 0)
+        rfc  = obs.get("remaining_forecast_max")
+        post_peak = rfc is None or om >= rfc
+        state_txt = "השיא היומי כבר עבר — התוצאה כמעט נעולה." if post_peak else "השיא היומי עדיין יכול לקרות בשעות שנותרו."
+        rem_html = (f'תחזית לשעות שנותרו: <strong>{rfc:.1f}°C</strong>. '
+                    if rfc is not None else '')
+        latest_html = (f'דיווח אחרון בשעה <strong>{_esc(lt)}</strong>: '
+                       f'<strong>{ltemp}°C</strong>. ' if ltemp is not None else '')
+        obs_panel = (
+            f'<div class="banner banner--obs">'
+            f'🌡️ <strong>תצפית METAR חיה (תחנת EGLC)</strong>: '
+            f'מקסימום שנמדד עד כה <strong>{om}°C</strong> '
+            f'(שיא בשעה <strong>{_esc(pt)}</strong>, {rpt} דיווחים). '
+            f'{latest_html}'
+            f'{rem_html}'
+            f'{state_txt} '
+            f'{_info("observed")}'
+            f'</div>'
+        )
+
     return f"""
     <section class="card">
       <header class="card__head">
@@ -251,6 +301,8 @@ def _render_run(run: dict) -> str:
       </div>
 
       {outlier_banner}
+      {obs_panel}
+      {divergence_banner}
 
       <div class="consensus">
         <div class="consensus__stats">
@@ -452,6 +504,13 @@ def render_dashboard(payload: dict) -> str:
   .banner--warn {{ border-color:var(--warn);
     background:color-mix(in srgb, var(--warn) 10%, transparent);
     color:color-mix(in srgb, var(--warn) 80%, white); }}
+  .banner--obs {{ border-color:#6AB4E0;
+    background:color-mix(in srgb, #6AB4E0 10%, transparent);
+    color:color-mix(in srgb, #9BD3F2 80%, white); line-height:1.7; }}
+  .banner--obs strong {{ color:#9BD3F2; }}
+  .banner--diverge {{ border-color:var(--neg);
+    background:color-mix(in srgb, var(--neg) 8%, transparent);
+    color:color-mix(in srgb, var(--neg) 75%, white); line-height:1.6; }}
 
   .consensus {{ display:flex; gap:18px; flex-wrap:wrap;
     align-items:center; margin-bottom:16px; }}

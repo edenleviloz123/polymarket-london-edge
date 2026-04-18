@@ -1,0 +1,738 @@
+{
+  "generated_at": "2026-04-18T17:38:27.887821+01:00",
+  "generated_at_utc_ms": 1776530307887,
+  "generated_local": "17:38",
+  "generated_user": "19:38",
+  "generated_date_local": "2026-04-18",
+  "timezone_local": "Europe/London",
+  "timezone_user": "Asia/Jerusalem",
+  "runs": [
+    {
+      "target_date": "2026-04-18",
+      "consensus": {
+        "mean": 17.119999999999997,
+        "std": 0.31937438845342675,
+        "n": 5,
+        "models": {
+          "MeteoFrance": 16.7,
+          "ICON": 17.3,
+          "GFS": 16.9,
+          "UKMO": 17.2,
+          "ECMWF": 17.5
+        },
+        "all_models": {
+          "MeteoFrance": 16.7,
+          "ICON": 17.3,
+          "GFS": 16.9,
+          "UKMO": 17.2,
+          "ECMWF": 17.5
+        },
+        "outliers": {}
+      },
+      "event": {
+        "title": "Highest temperature in London on April 18?",
+        "slug": "highest-temperature-in-london-on-april-18-2026",
+        "endDate": "2026-04-18T12:00:00Z"
+      },
+      "edges": [
+        {
+          "bucket": {
+            "type": "below",
+            "temp": 11,
+            "label": "11°C or below"
+          },
+          "yes_price": 0.0,
+          "no_price": 1.0,
+          "volume": 3133.3498840000007,
+          "liquidity": 0.0,
+          "question": "Will the highest temperature in London be 11°C or below on April 18?",
+          "slug": "highest-temperature-in-london-on-april-18-2026-11corbelow",
+          "our_prob": 0.0,
+          "edge": 0.0,
+          "kelly": 0.0,
+          "ev": 0.0,
+          "effective_sigma": 0.25,
+          "observed_max_used": 16,
+          "post_peak": false
+        },
+        {
+          "bucket": {
+            "type": "single",
+            "temp": 12,
+            "label": "12°C"
+          },
+          "yes_price": 0.0,
+          "no_price": 1.0,
+          "volume": 8301.508766,
+          "liquidity": 0.0,
+          "question": "Will the highest temperature in London be 12°C on April 18?",
+          "slug": "highest-temperature-in-london-on-april-18-2026-12c",
+          "our_prob": 0.0,
+          "edge": 0.0,
+          "kelly": 0.0,
+          "ev": 0.0,
+          "effective_sigma": 0.25,
+          "observed_max_used": 16,
+          "post_peak": false
+        },
+        {
+          "bucket": {
+            "type": "single",
+            "temp": 13,
+            "label": "13°C"
+          },
+          "yes_price": 0.0,
+          "no_price": 1.0,
+          "volume": 7836.3774840000015,
+          "liquidity": 0.0,
+          "question": "Will the highest temperature in London be 13°C on April 18?",
+          "slug": "highest-temperature-in-london-on-april-18-2026-13c",
+          "our_prob": 0.0,
+          "edge": 0.0,
+          "kelly": 0.0,
+          "ev": 0.0,
+          "effective_sigma": 0.25,
+          "observed_max_used": 16,
+          "post_peak": false
+        },
+        {
+          "bucket": {
+            "type": "single",
+            "temp": 14,
+            "label": "14°C"
+          },
+          "yes_price": 0.0,
+          "no_price": 1.0,
+          "volume": 14427.005149000004,
+          "liquidity": 0.0,
+          "question": "Will the highest temperature in London be 14°C on April 18?",
+          "slug": "highest-temperature-in-london-on-april-18-2026-14c",
+          "our_prob": 0.0,
+          "edge": 0.0,
+          "kelly": 0.0,
+          "ev": 0.0,
+          "effective_sigma": 0.25,
+          "observed_max_used": 16,
+          "post_peak": false
+        },
+        {
+          "bucket": {
+            "type": "single",
+            "temp": 15,
+            "label": "15°C"
+          },
+          "yes_price": 0.0,
+          "no_price": 1.0,
+          "volume": 16659.559104999986,
+          "liquidity": 0.0,
+          "question": "Will the highest temperature in London be 15°C on April 18?",
+          "slug": "highest-temperature-in-london-on-april-18-2026-15c",
+          "our_prob": 0.0,
+          "edge": 0.0,
+          "kelly": 0.0,
+          "ev": 0.0,
+          "effective_sigma": 0.25,
+          "observed_max_used": 16,
+          "post_peak": false
+        },
+        {
+          "bucket": {
+            "type": "single",
+            "temp": 16,
+            "label": "16°C"
+          },
+          "yes_price": 0.945,
+          "no_price": 0.05500000000000005,
+          "volume": 51826.35251200007,
+          "liquidity": 2983.31263,
+          "question": "Will the highest temperature in London be 16°C on April 18?",
+          "slug": "highest-temperature-in-london-on-april-18-2026-16c",
+          "our_prob": 0.6554217416103263,
+          "edge": -0.28957825838967366,
+          "kelly": 0.0,
+          "ev": -0.3064320194599721,
+          "effective_sigma": 0.25,
+          "observed_max_used": 16,
+          "post_peak": false
+        },
+        {
+          "bucket": {
+            "type": "single",
+            "temp": 17,
+            "label": "17°C"
+          },
+          "yes_price": 0.045,
+          "no_price": 0.955,
+          "volume": 24622.596235,
+          "liquidity": 1441.8647,
+          "question": "Will the highest temperature in London be 17°C on April 18?",
+          "slug": "highest-temperature-in-london-on-april-18-2026-17c",
+          "our_prob": 0.344572845845766,
+          "edge": 0.299572845845766,
+          "kelly": 0.31368884381755596,
+          "ev": 6.657174352128132,
+          "effective_sigma": 0.25,
+          "observed_max_used": 16,
+          "post_peak": false
+        },
+        {
+          "bucket": {
+            "type": "single",
+            "temp": 18,
+            "label": "18°C"
+          },
+          "yes_price": 0.0085,
+          "no_price": 0.9915,
+          "volume": 28032.06493600001,
+          "liquidity": 1730.3161,
+          "question": "Will the highest temperature in London be 18°C on April 18?",
+          "slug": "highest-temperature-in-london-on-april-18-2026-18c",
+          "our_prob": 5.412543907734602e-06,
+          "edge": -0.008494587456092266,
+          "kelly": 0.0,
+          "ev": -0.9993632301285018,
+          "effective_sigma": 0.25,
+          "observed_max_used": 16,
+          "post_peak": false
+        },
+        {
+          "bucket": {
+            "type": "single",
+            "temp": 19,
+            "label": "19°C"
+          },
+          "yes_price": 0.0005,
+          "no_price": 0.9995,
+          "volume": 19058.465423999998,
+          "liquidity": 1916.92052,
+          "question": "Will the highest temperature in London be 19°C on April 18?",
+          "slug": "highest-temperature-in-london-on-april-18-2026-19c",
+          "our_prob": 0.0,
+          "edge": -0.0005,
+          "kelly": 0.0,
+          "ev": -1.0,
+          "effective_sigma": 0.25,
+          "observed_max_used": 16,
+          "post_peak": false
+        },
+        {
+          "bucket": {
+            "type": "single",
+            "temp": 20,
+            "label": "20°C"
+          },
+          "yes_price": 0.0005,
+          "no_price": 0.9995,
+          "volume": 8486.076213,
+          "liquidity": 1816.51856,
+          "question": "Will the highest temperature in London be 20°C on April 18?",
+          "slug": "highest-temperature-in-london-on-april-18-2026-20c",
+          "our_prob": 0.0,
+          "edge": -0.0005,
+          "kelly": 0.0,
+          "ev": -1.0,
+          "effective_sigma": 0.25,
+          "observed_max_used": 16,
+          "post_peak": false
+        },
+        {
+          "bucket": {
+            "type": "above",
+            "temp": 21,
+            "label": "21°C or higher"
+          },
+          "yes_price": 0.0005,
+          "no_price": 0.9995,
+          "volume": 13841.132813999991,
+          "liquidity": 1649.05333,
+          "question": "Will the highest temperature in London be 21°C or higher on April 18?",
+          "slug": "highest-temperature-in-london-on-april-18-2026-21corhigher",
+          "our_prob": 0.0,
+          "edge": -0.0005,
+          "kelly": 0.0,
+          "ev": -1.0,
+          "effective_sigma": 0.25,
+          "observed_max_used": 16,
+          "post_peak": false
+        }
+      ],
+      "signal": {
+        "action": "STRONG_BUY",
+        "best": {
+          "bucket": {
+            "type": "single",
+            "temp": 17,
+            "label": "17°C"
+          },
+          "yes_price": 0.045,
+          "no_price": 0.955,
+          "volume": 24622.596235,
+          "liquidity": 1441.8647,
+          "question": "Will the highest temperature in London be 17°C on April 18?",
+          "slug": "highest-temperature-in-london-on-april-18-2026-17c",
+          "our_prob": 0.344572845845766,
+          "edge": 0.299572845845766,
+          "kelly": 0.31368884381755596,
+          "ev": 6.657174352128132,
+          "effective_sigma": 0.25,
+          "observed_max_used": 16,
+          "post_peak": false
+        },
+        "most_likely": {
+          "bucket": {
+            "type": "single",
+            "temp": 16,
+            "label": "16°C"
+          },
+          "yes_price": 0.945,
+          "no_price": 0.05500000000000005,
+          "volume": 51826.35251200007,
+          "liquidity": 2983.31263,
+          "question": "Will the highest temperature in London be 16°C on April 18?",
+          "slug": "highest-temperature-in-london-on-april-18-2026-16c",
+          "our_prob": 0.6554217416103263,
+          "edge": -0.28957825838967366,
+          "kelly": 0.0,
+          "ev": -0.3064320194599721,
+          "effective_sigma": 0.25,
+          "observed_max_used": 16,
+          "post_peak": false
+        },
+        "best_edge": {
+          "bucket": {
+            "type": "single",
+            "temp": 17,
+            "label": "17°C"
+          },
+          "yes_price": 0.045,
+          "no_price": 0.955,
+          "volume": 24622.596235,
+          "liquidity": 1441.8647,
+          "question": "Will the highest temperature in London be 17°C on April 18?",
+          "slug": "highest-temperature-in-london-on-april-18-2026-17c",
+          "our_prob": 0.344572845845766,
+          "edge": 0.299572845845766,
+          "kelly": 0.31368884381755596,
+          "ev": 6.657174352128132,
+          "effective_sigma": 0.25,
+          "observed_max_used": 16,
+          "post_peak": false
+        },
+        "qualified_best": {
+          "bucket": {
+            "type": "single",
+            "temp": 17,
+            "label": "17°C"
+          },
+          "yes_price": 0.045,
+          "no_price": 0.955,
+          "volume": 24622.596235,
+          "liquidity": 1441.8647,
+          "question": "Will the highest temperature in London be 17°C on April 18?",
+          "slug": "highest-temperature-in-london-on-april-18-2026-17c",
+          "our_prob": 0.344572845845766,
+          "edge": 0.299572845845766,
+          "kelly": 0.31368884381755596,
+          "ev": 6.657174352128132,
+          "effective_sigma": 0.25,
+          "observed_max_used": 16,
+          "post_peak": false
+        },
+        "rationale": "החוזה «17°C» (הסתברות 34.5%, שוק 4.5%): יתרון +29.96%, Kelly≈31.4% מהבנקרול, EV=+665.7%. ה-bucket הסביר ביותר לפי המודל הוא «16°C» (הסתברות 65.5%, שוק 94.5%)."
+      },
+      "observation": {
+        "observed_max_int": 16,
+        "peak_time_local": "12:00",
+        "report_count": 36,
+        "latest_time_local": "17:20",
+        "latest_temp": 16,
+        "raw_sample": "METAR EGLC 181620Z AUTO 29009KT 250V340 9999 NCD 16/03 Q1021",
+        "remaining_forecast_max": 16.4,
+        "hours_remaining": 6
+      }
+    },
+    {
+      "target_date": "2026-04-19",
+      "consensus": {
+        "mean": 15.16,
+        "std": 0.5224940191045253,
+        "n": 5,
+        "models": {
+          "MeteoFrance": 15.0,
+          "ICON": 14.7,
+          "GFS": 14.8,
+          "UKMO": 15.3,
+          "ECMWF": 16.0
+        },
+        "all_models": {
+          "MeteoFrance": 15.0,
+          "ICON": 14.7,
+          "GFS": 14.8,
+          "UKMO": 15.3,
+          "ECMWF": 16.0
+        },
+        "outliers": {}
+      },
+      "event": {
+        "title": "Highest temperature in London on April 19?",
+        "slug": "highest-temperature-in-london-on-april-19-2026",
+        "endDate": "2026-04-19T12:00:00Z"
+      },
+      "edges": [
+        {
+          "bucket": {
+            "type": "below",
+            "temp": 9,
+            "label": "9°C or below"
+          },
+          "yes_price": 0.0005,
+          "no_price": 0.9995,
+          "volume": 5790.709100000001,
+          "liquidity": 8672.0259,
+          "question": "Will the highest temperature in London be 9°C or below on April 19?",
+          "slug": "highest-temperature-in-london-on-april-19-2026-9corbelow",
+          "our_prob": 1.2052485984880215e-27,
+          "edge": -0.0005,
+          "kelly": 0.0,
+          "ev": -1.0,
+          "effective_sigma": 0.5224940191045253,
+          "observed_max_used": null,
+          "post_peak": false
+        },
+        {
+          "bucket": {
+            "type": "single",
+            "temp": 10,
+            "label": "10°C"
+          },
+          "yes_price": 0.0005,
+          "no_price": 0.9995,
+          "volume": 8272.353566,
+          "liquidity": 12562.04435,
+          "question": "Will the highest temperature in London be 10°C on April 19?",
+          "slug": "highest-temperature-in-london-on-april-19-2026-10c",
+          "our_prob": 2.357639358272835e-19,
+          "edge": -0.0004999999999999998,
+          "kelly": 0.0,
+          "ev": -0.9999999999999996,
+          "effective_sigma": 0.5224940191045253,
+          "observed_max_used": null,
+          "post_peak": false
+        },
+        {
+          "bucket": {
+            "type": "single",
+            "temp": 11,
+            "label": "11°C"
+          },
+          "yes_price": 0.0015,
+          "no_price": 0.9985,
+          "volume": 2442.984409,
+          "liquidity": 5294.57311,
+          "question": "Will the highest temperature in London be 11°C on April 19?",
+          "slug": "highest-temperature-in-london-on-april-19-2026-11c",
+          "our_prob": 1.2361213905099378e-12,
+          "edge": -0.0014999999987638786,
+          "kelly": 0.0,
+          "ev": -0.9999999991759191,
+          "effective_sigma": 0.5224940191045253,
+          "observed_max_used": null,
+          "post_peak": false
+        },
+        {
+          "bucket": {
+            "type": "single",
+            "temp": 12,
+            "label": "12°C"
+          },
+          "yes_price": 0.0015,
+          "no_price": 0.9985,
+          "volume": 4146.691334,
+          "liquidity": 3508.69327,
+          "question": "Will the highest temperature in London be 12°C on April 19?",
+          "slug": "highest-temperature-in-london-on-april-19-2026-12c",
+          "our_prob": 1.781194349691453e-07,
+          "edge": -0.001499821880565031,
+          "kelly": 0.0,
+          "ev": -0.9998812537100206,
+          "effective_sigma": 0.5224940191045253,
+          "observed_max_used": null,
+          "post_peak": false
+        },
+        {
+          "bucket": {
+            "type": "single",
+            "temp": 13,
+            "label": "13°C"
+          },
+          "yes_price": 0.0025,
+          "no_price": 0.9975,
+          "volume": 3330.911237,
+          "liquidity": 2890.09188,
+          "question": "Will the highest temperature in London be 13°C on April 19?",
+          "slug": "highest-temperature-in-london-on-april-19-2026-13c",
+          "our_prob": 0.0007436778541098375,
+          "edge": -0.0017563221458901626,
+          "kelly": 0.0,
+          "ev": -0.7025288583560649,
+          "effective_sigma": 0.5224940191045253,
+          "observed_max_used": null,
+          "post_peak": false
+        },
+        {
+          "bucket": {
+            "type": "single",
+            "temp": 14,
+            "label": "14°C"
+          },
+          "yes_price": 0.0375,
+          "no_price": 0.9625,
+          "volume": 5166.475032000001,
+          "liquidity": 3936.54206,
+          "question": "Will the highest temperature in London be 14°C on April 19?",
+          "slug": "highest-temperature-in-london-on-april-19-2026-14c",
+          "our_prob": 0.10251976701335559,
+          "edge": 0.0650197670133556,
+          "kelly": 0.06755300468920061,
+          "ev": 1.7338604536894824,
+          "effective_sigma": 0.5224940191045253,
+          "observed_max_used": null,
+          "post_peak": false
+        },
+        {
+          "bucket": {
+            "type": "single",
+            "temp": 15,
+            "label": "15°C"
+          },
+          "yes_price": 0.395,
+          "no_price": 0.605,
+          "volume": 3238.1021179999975,
+          "liquidity": 2274.6193,
+          "question": "Will the highest temperature in London be 15°C on April 19?",
+          "slug": "highest-temperature-in-london-on-april-19-2026-15c",
+          "our_prob": 0.639124415050264,
+          "edge": 0.24412441505026394,
+          "kelly": 0.403511429835147,
+          "ev": 0.6180364937981364,
+          "effective_sigma": 0.5224940191045253,
+          "observed_max_used": null,
+          "post_peak": false
+        },
+        {
+          "bucket": {
+            "type": "single",
+            "temp": 16,
+            "label": "16°C"
+          },
+          "yes_price": 0.48,
+          "no_price": 0.52,
+          "volume": 3512.7336480000026,
+          "liquidity": 1955.2545,
+          "question": "Will the highest temperature in London be 16°C on April 19?",
+          "slug": "highest-temperature-in-london-on-april-19-2026-16c",
+          "our_prob": 0.2524475587116053,
+          "edge": -0.2275524412883947,
+          "kelly": 0.0,
+          "ev": -0.4740675860174889,
+          "effective_sigma": 0.5224940191045253,
+          "observed_max_used": null,
+          "post_peak": false
+        },
+        {
+          "bucket": {
+            "type": "single",
+            "temp": 17,
+            "label": "17°C"
+          },
+          "yes_price": 0.085,
+          "no_price": 0.915,
+          "volume": 2959.801388,
+          "liquidity": 2625.3915,
+          "question": "Will the highest temperature in London be 17°C on April 19?",
+          "slug": "highest-temperature-in-london-on-april-19-2026-17c",
+          "our_prob": 0.005160645136401576,
+          "edge": -0.07983935486359843,
+          "kelly": 0.0,
+          "ev": -0.9392865278070403,
+          "effective_sigma": 0.5224940191045253,
+          "observed_max_used": null,
+          "post_peak": false
+        },
+        {
+          "bucket": {
+            "type": "single",
+            "temp": 18,
+            "label": "18°C"
+          },
+          "yes_price": 0.0065,
+          "no_price": 0.9935,
+          "volume": 2430.0789360000003,
+          "liquidity": 2185.67836,
+          "question": "Will the highest temperature in London be 18°C on April 19?",
+          "slug": "highest-temperature-in-london-on-april-19-2026-18c",
+          "our_prob": 3.7580319510732707e-06,
+          "edge": -0.006496241968048926,
+          "kelly": 0.0,
+          "ev": -0.9994218412382965,
+          "effective_sigma": 0.5224940191045253,
+          "observed_max_used": null,
+          "post_peak": false
+        },
+        {
+          "bucket": {
+            "type": "above",
+            "temp": 19,
+            "label": "19°C or higher"
+          },
+          "yes_price": 0.0035,
+          "no_price": 0.9965,
+          "volume": 2643.440220999999,
+          "liquidity": 2192.0227,
+          "question": "Will the highest temperature in London be 19°C or higher on April 19?",
+          "slug": "highest-temperature-in-london-on-april-19-2026-19corhigher",
+          "our_prob": 8.164158238344044e-11,
+          "edge": -0.0034999999183584177,
+          "kelly": 0.0,
+          "ev": -0.9999999766738336,
+          "effective_sigma": 0.5224940191045253,
+          "observed_max_used": null,
+          "post_peak": false
+        }
+      ],
+      "signal": {
+        "action": "STRONG_BUY",
+        "best": {
+          "bucket": {
+            "type": "single",
+            "temp": 15,
+            "label": "15°C"
+          },
+          "yes_price": 0.395,
+          "no_price": 0.605,
+          "volume": 3238.1021179999975,
+          "liquidity": 2274.6193,
+          "question": "Will the highest temperature in London be 15°C on April 19?",
+          "slug": "highest-temperature-in-london-on-april-19-2026-15c",
+          "our_prob": 0.639124415050264,
+          "edge": 0.24412441505026394,
+          "kelly": 0.403511429835147,
+          "ev": 0.6180364937981364,
+          "effective_sigma": 0.5224940191045253,
+          "observed_max_used": null,
+          "post_peak": false
+        },
+        "most_likely": {
+          "bucket": {
+            "type": "single",
+            "temp": 15,
+            "label": "15°C"
+          },
+          "yes_price": 0.395,
+          "no_price": 0.605,
+          "volume": 3238.1021179999975,
+          "liquidity": 2274.6193,
+          "question": "Will the highest temperature in London be 15°C on April 19?",
+          "slug": "highest-temperature-in-london-on-april-19-2026-15c",
+          "our_prob": 0.639124415050264,
+          "edge": 0.24412441505026394,
+          "kelly": 0.403511429835147,
+          "ev": 0.6180364937981364,
+          "effective_sigma": 0.5224940191045253,
+          "observed_max_used": null,
+          "post_peak": false
+        },
+        "best_edge": {
+          "bucket": {
+            "type": "single",
+            "temp": 15,
+            "label": "15°C"
+          },
+          "yes_price": 0.395,
+          "no_price": 0.605,
+          "volume": 3238.1021179999975,
+          "liquidity": 2274.6193,
+          "question": "Will the highest temperature in London be 15°C on April 19?",
+          "slug": "highest-temperature-in-london-on-april-19-2026-15c",
+          "our_prob": 0.639124415050264,
+          "edge": 0.24412441505026394,
+          "kelly": 0.403511429835147,
+          "ev": 0.6180364937981364,
+          "effective_sigma": 0.5224940191045253,
+          "observed_max_used": null,
+          "post_peak": false
+        },
+        "qualified_best": {
+          "bucket": {
+            "type": "single",
+            "temp": 15,
+            "label": "15°C"
+          },
+          "yes_price": 0.395,
+          "no_price": 0.605,
+          "volume": 3238.1021179999975,
+          "liquidity": 2274.6193,
+          "question": "Will the highest temperature in London be 15°C on April 19?",
+          "slug": "highest-temperature-in-london-on-april-19-2026-15c",
+          "our_prob": 0.639124415050264,
+          "edge": 0.24412441505026394,
+          "kelly": 0.403511429835147,
+          "ev": 0.6180364937981364,
+          "effective_sigma": 0.5224940191045253,
+          "observed_max_used": null,
+          "post_peak": false
+        },
+        "rationale": "החוזה «15°C» (הסתברות 63.9%, שוק 39.5%): יתרון +24.41%, Kelly≈40.4% מהבנקרול, EV=+61.8%. ה-bucket הסביר ביותר לפי המודל הוא «15°C» (הסתברות 63.9%, שוק 39.5%)."
+      },
+      "observation": null
+    }
+  ],
+  "accuracy": {
+    "models": {
+      "MeteoFrance": {
+        "n": 0,
+        "mae": null,
+        "bias": null,
+        "hit_1c": null,
+        "rank_avg": null
+      },
+      "ICON": {
+        "n": 0,
+        "mae": null,
+        "bias": null,
+        "hit_1c": null,
+        "rank_avg": null
+      },
+      "GFS": {
+        "n": 0,
+        "mae": null,
+        "bias": null,
+        "hit_1c": null,
+        "rank_avg": null
+      },
+      "UKMO": {
+        "n": 0,
+        "mae": null,
+        "bias": null,
+        "hit_1c": null,
+        "rank_avg": null
+      },
+      "ECMWF": {
+        "n": 0,
+        "mae": null,
+        "bias": null,
+        "hit_1c": null,
+        "rank_avg": null
+      }
+    },
+    "consensus": {
+      "n": 0,
+      "mae": null,
+      "bias": null,
+      "hit_1c": null,
+      "rank_avg": null
+    },
+    "days_measured": 0,
+    "last_update": null
+  }
+}

@@ -15,6 +15,12 @@ from config import (
 )
 
 
+# σ אפקטיבי של "השיא בשעות שנותרו" סביב התחזית השעתית.
+# ערך קטן יחסית כי תחזית לשעות הקרובות (עד 6 שעות) מדויקת למדי,
+# במיוחד בשעות הצינון של הערב. ערך גדול מדי מנפח הסתברויות בקצוות.
+POST_PEAK_SIGMA = 0.25
+
+
 def bucket_probability(bucket: dict, mu: float, sigma: float) -> float:
     """
     P שהטמפ' המקסימלית המעוגלת תיפול בתוך ה-bucket, תחת N(μ, σ).
@@ -32,6 +38,67 @@ def bucket_probability(bucket: dict, mu: float, sigma: float) -> float:
         norm.cdf(t + 0.5, loc=mu, scale=sigma)
         - norm.cdf(t - 0.5, loc=mu, scale=sigma)
     )
+
+
+def bucket_probability_metar(bucket: dict,
+                              observed_max_int: int,
+                              remaining_mu: Optional[float],
+                              remaining_sigma: float) -> float:
+    """
+    הסתברות ל-bucket בהינתן:
+      - observed_max_int: מקסימום METAR שנמדד עד עכשיו (מספר שלם, °C)
+      - remaining_mu: תחזית לשיא בשעות שנותרו (°C, המשכי) או None אם היום נגמר
+      - remaining_sigma: אי-ודאות של התחזית לשעות הנותרות
+
+    המקסימום היומי הוא max(observed_max_int, future_peak). future_peak הוא
+    משתנה מקרי שאת ההתפלגות שלו (כ-N(remaining_mu, remaining_sigma)) מביאים
+    מהתחזית השעתית של Open-Meteo. ה-METAR בסוף היום יוכרע על ידי round של
+    ה-future_peak אם הוא עוקף את observed_max_int.
+    """
+    t = bucket["temp"]
+    btype = bucket["type"]
+    m = observed_max_int
+
+    # ── אם אין שעות שנותרו (יום נגמר מבחינת תחזית) ──
+    if remaining_mu is None:
+        # היום נסגר עם observed_max_int כתוצאה הסופית
+        if btype == "below":
+            return 1.0 if m <= t else 0.0
+        if btype == "above":
+            return 1.0 if m >= t else 0.0
+        return 1.0 if m == t else 0.0
+
+    # ── יש שעות שנותרו: daily_max = max(m, future_peak) ──
+    sigma = max(remaining_sigma, 1e-6)
+
+    def P_future_le(x: float) -> float:
+        """P(future_peak ≤ x)."""
+        return float(norm.cdf(x, loc=remaining_mu, scale=sigma))
+
+    def P_future_in(lo: float, hi: float) -> float:
+        """P(lo ≤ future_peak ≤ hi)."""
+        return max(0.0, P_future_le(hi) - P_future_le(lo))
+
+    if btype == "below":
+        # daily_max_int ≤ t  ⇔  m ≤ t ו-future_peak < t + 0.5
+        if m > t:
+            return 0.0
+        return P_future_le(t + 0.5)
+
+    if btype == "above":
+        # daily_max_int ≥ t  ⇔  m ≥ t או future_peak ≥ t - 0.5
+        if m >= t:
+            return 1.0
+        return 1.0 - P_future_le(t - 0.5)
+
+    # single t
+    if m > t:
+        return 0.0
+    if m == t:
+        # daily = t אם-ורק-אם future_peak < t + 0.5
+        return P_future_le(t + 0.5)
+    # m < t: daily = t אם-ורק-אם future_peak ∈ [t-0.5, t+0.5]
+    return P_future_in(t - 0.5, t + 0.5)
 
 
 def kelly_fraction(p: float, yes_price: float) -> float:
@@ -54,23 +121,53 @@ def expected_value(p: float, yes_price: float) -> float:
     return p * (1.0 / yes_price) - 1.0
 
 
-def compute_edges(contracts: List[dict], mu: float, sigma: Optional[float]) -> List[dict]:
+def compute_edges(contracts: List[dict], mu: float, sigma: Optional[float],
+                   observation: Optional[dict] = None) -> List[dict]:
     """
-    σ אפקטיבי = max(σ_בין-מודלים, MIN_SIGMA).
-    כך חוסר-הסכמה בין מודלים מגדיל את אי-הוודאות — ולא רק פרמטר קבוע.
+    מחשב Edge לכל חוזה.
+
+    שני מסלולי חישוב:
+
+    (1) observation-aware (ליום הנוכחי):
+        observation כולל observed_max_int מ-METAR + remaining_forecast_max.
+        החישוב: daily_max_int = max(observed_max_int, round(future_peak))
+        כאשר future_peak ~ N(remaining_mu, POST_PEAK_SIGMA).
+
+    (2) forecast-only (ליום עתידי):
+        הערך μ מהקונצנזוס של 5 מודלים, σ = max(inter_model, MIN_SIGMA).
     """
-    effective_sigma = max(sigma or 0.0, MIN_SIGMA)
     results = []
+    observed_max_int = None
+    remaining_mu = None
+    remaining_sigma = POST_PEAK_SIGMA
+    post_peak = False
+
+    if observation and observation.get("observed_max_int") is not None:
+        observed_max_int = int(observation["observed_max_int"])
+        rem_fc = observation.get("remaining_forecast_max")
+        remaining_mu = rem_fc
+        # "שיא כבר עבר" אם ה-METAR הנמדד כבר גבוה מהתחזית לשעות שנותרו
+        if rem_fc is None or observed_max_int >= rem_fc:
+            post_peak = True
+
     for c in contracts:
-        p    = bucket_probability(c["bucket"], mu, effective_sigma)
+        if observed_max_int is not None:
+            p = bucket_probability_metar(
+                c["bucket"], observed_max_int, remaining_mu, remaining_sigma)
+            eff_sigma = remaining_sigma
+        else:
+            eff_sigma = max(sigma or 0.0, MIN_SIGMA)
+            p = bucket_probability(c["bucket"], mu, eff_sigma)
         edge = p - c["yes_price"]
         results.append({
             **c,
-            "our_prob":        p,
-            "edge":            edge,
-            "kelly":           kelly_fraction(p, c["yes_price"]),
-            "ev":              expected_value(p, c["yes_price"]),
-            "effective_sigma": effective_sigma,
+            "our_prob":          p,
+            "edge":              edge,
+            "kelly":             kelly_fraction(p, c["yes_price"]),
+            "ev":                expected_value(p, c["yes_price"]),
+            "effective_sigma":   eff_sigma,
+            "observed_max_used": observed_max_int,
+            "post_peak":         post_peak,
         })
     return results
 

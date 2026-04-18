@@ -2,6 +2,7 @@
 שליפת תחזיות טמפ' מקסימלית יומית מחמישה מודלי מזג-אוויר דרך Open-Meteo,
 עם retry, ולידציה, וחישוב קונצנזוס + פיזור בין-מודלי.
 """
+import datetime as dt
 import logging
 import time
 from typing import Dict, Optional
@@ -65,6 +66,51 @@ def fetch_forecasts(forecast_days: int = 4) -> Dict[str, Dict[str, Optional[floa
                 val = None
             result[date][display_name] = val
     return result
+
+
+def fetch_remaining_hourly_forecast(now) -> Optional[dict]:
+    """
+    שולף את תחזית הטמפ' השעתית לשעות שנותרו היום (מ-now עד סוף יום מקומי).
+    משמש כשכבר יש לנו תצפיות METAR אמיתיות על העבר, ורוצים לדעת מה הצפי להמשך.
+    מחזיר: {remaining_forecast_max, hours_remaining, remaining_values}
+    """
+    today_iso = now.date().isoformat()
+    try:
+        data = _http_get(OPEN_METEO_URL, {
+            "latitude":          LAT,
+            "longitude":         LON,
+            "hourly":            "temperature_2m",
+            "temperature_unit":  "celsius",
+            "timezone":          TIMEZONE,
+            "start_date":        today_iso,
+            "end_date":          today_iso,
+        })
+    except Exception as e:
+        log.warning("שליפת תחזית שעתית נכשלה: %s", e)
+        return None
+
+    hourly = (data.get("hourly") or {})
+    times = hourly.get("time") or []
+    temps = hourly.get("temperature_2m") or []
+    remaining_vals = []
+    for t_iso, v in zip(times, temps):
+        if v is None or not (TEMP_SANITY_MIN <= v <= TEMP_SANITY_MAX):
+            continue
+        try:
+            t_dt = dt.datetime.fromisoformat(t_iso).replace(tzinfo=now.tzinfo)
+        except ValueError:
+            continue
+        if t_dt > now:
+            remaining_vals.append(v)
+
+    if not remaining_vals:
+        return {"remaining_forecast_max": None, "hours_remaining": 0,
+                "remaining_values": []}
+    return {
+        "remaining_forecast_max": max(remaining_vals),
+        "hours_remaining":        len(remaining_vals),
+        "remaining_values":       remaining_vals,
+    }
 
 
 def detect_outliers(per_model: Dict[str, Optional[float]],
