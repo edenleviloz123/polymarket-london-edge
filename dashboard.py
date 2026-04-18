@@ -98,30 +98,46 @@ def _render_model_chips(cons: dict) -> str:
     return "".join(chips)
 
 
-def _render_edges_table(edges: list, best_label: Optional[str]) -> str:
+def _render_edges_table(edges: list,
+                        best_label: Optional[str],
+                        likely_label: Optional[str],
+                        best_edge_label: Optional[str]) -> str:
     if not edges:
         return '<p class="muted">אין חוזים זמינים לתאריך הזה.</p>'
 
     # מציגים את TOP_N_BUCKETS הגבוהים בהסתברות שלנו,
-    # ומוודאים שהחוזה עם היתרון הגבוה ביותר כלול תמיד.
+    # ותמיד מבטיחים שה-bucket הכי סביר, הפעולה, והיתרון המקסימלי כלולים.
     sorted_by_prob = sorted(edges, key=lambda e: e["our_prob"], reverse=True)
-    visible = sorted_by_prob[:TOP_N_BUCKETS]
-    if best_label and not any((e["bucket"]["label"] == best_label) for e in visible):
-        best_row = next((e for e in edges if e["bucket"]["label"] == best_label), None)
-        if best_row is not None:
-            visible = visible[:TOP_N_BUCKETS - 1] + [best_row]
+    visible = list(sorted_by_prob[:TOP_N_BUCKETS])
+    visible_labels = {e["bucket"]["label"] for e in visible}
+    for must_show in (best_label, likely_label, best_edge_label):
+        if must_show and must_show not in visible_labels:
+            row = next((e for e in edges
+                        if e["bucket"]["label"] == must_show), None)
+            if row is not None:
+                visible.append(row)
+                visible_labels.add(must_show)
     # ממיינים לצורך תצוגה: טמפ' עולה
     type_order = {"below": 0, "single": 1, "above": 2}
-    visible.sort(key=lambda e: (type_order[e["bucket"]["type"]], e["bucket"]["temp"]))
+    visible.sort(key=lambda e: (type_order[e["bucket"]["type"]],
+                                e["bucket"]["temp"]))
 
     rows = []
     for e in visible:
-        is_best = best_label and e["bucket"]["label"] == best_label
+        lbl = e["bucket"]["label"]
+        is_best   = best_label   and lbl == best_label
+        is_likely = likely_label and lbl == likely_label
         edge_cls = "pos" if e["edge"] > 0 else ("neg" if e["edge"] < 0 else "")
-        row_cls = "row row--best" if is_best else "row"
+        row_classes = ["row"]
+        if is_best:   row_classes.append("row--best")
+        if is_likely: row_classes.append("row--likely")
+        markers = []
+        if is_best:   markers.append('<span class="mark mark--best">פעולה</span>')
+        if is_likely: markers.append('<span class="mark mark--likely">הכי סביר</span>')
+        marker_html = "".join(markers)
         rows.append(
-            f'<tr class="{row_cls}">'
-            f'<td class="t-label">{_esc(e["bucket"]["label"])}</td>'
+            f'<tr class="{" ".join(row_classes)}">'
+            f'<td class="t-label">{_esc(lbl)} {marker_html}</td>'
             f'<td>{e["our_prob"]*100:.1f}%</td>'
             f'<td>{e["yes_price"]*100:.1f}%</td>'
             f'<td class="t-edge {edge_cls}">{_pct(e["edge"])}</td>'
@@ -134,9 +150,10 @@ def _render_edges_table(edges: list, best_label: Optional[str]) -> str:
     shown_n = len(visible)
     note = ""
     if shown_n < total_n:
-        note = (f'<p class="muted note">מוצגים {shown_n} מתוך {total_n} חוזים: '
-                f'הארבעה בעלי ההסתברות הגבוהה ביותר לפי המודל, '
-                f'והחוזה עם היתרון המקסימלי (אם לא כלול). </p>')
+        note = (f'<p class="muted note">מוצגים {shown_n} מתוך {total_n} חוזים. '
+                f'כלולים: הטופ לפי הסתברות, ה-bucket הכי סביר לפי המודל, '
+                f'החוזה שמניב את ההמלצה, וה-bucket עם היתרון המקסימלי '
+                f'(אם זה שונה מהשאר). </p>')
     return f"""
     <table class="edges">
       <thead><tr>
@@ -160,8 +177,35 @@ def _render_run(run: dict) -> str:
     event  = run.get("event")
     action = signal.get("action", "NO_DATA")
     color  = ACTION_COLOR[action]
-    best   = signal.get("best") or {}
-    best_label = (best.get("bucket") or {}).get("label")
+    best        = signal.get("best") or {}
+    most_likely = signal.get("most_likely") or {}
+    best_edge_b = signal.get("best_edge") or {}
+    best_label        = (best.get("bucket") or {}).get("label")
+    likely_label      = (most_likely.get("bucket") or {}).get("label")
+    best_edge_label   = (best_edge_b.get("bucket") or {}).get("label")
+
+    # קוביות משנה קטנות ליד הסיגנל — "הכי סביר" ו"יתרון מקסימלי"
+    signal_chips = []
+    if likely_label:
+        p_ml = most_likely["our_prob"] * 100
+        signal_chips.append(
+            f'<div class="sigchip sigchip--likely" '
+            f'title="הטמפרטורה שהמודל חושב שהכי סבירה, ללא קשר למחיר השוק.">'
+            f'<span class="sigchip__label">הכי סביר</span> '
+            f'<span class="sigchip__val">{_esc(likely_label)} · {p_ml:.1f}%</span>'
+            f'</div>'
+        )
+    if best_edge_label and best_edge_label != best_label:
+        be = best_edge_b
+        signal_chips.append(
+            f'<div class="sigchip sigchip--edge" '
+            f'title="הbucket עם היתרון הגדול ביותר. אם הוא אינו המומלץ — סביר שההסתברות שלו נמוכה מסף 30%.">'
+            f'<span class="sigchip__label">יתרון מקסימלי</span> '
+            f'<span class="sigchip__val">{_esc(best_edge_label)} · {be["edge"]*100:+.1f}%</span>'
+            f'</div>'
+        )
+    chips_html = (f'<div class="sigchips">{"".join(signal_chips)}</div>'
+                  if signal_chips else "")
 
     if event:
         title = _esc(event.get("title"))
@@ -203,6 +247,7 @@ def _render_run(run: dict) -> str:
           <div class="signal__action">{ACTION_HE[action]}</div>
         </div>
         <div class="signal__rationale">{_esc(signal.get("rationale", ""))}</div>
+        {chips_html}
       </div>
 
       {outlier_banner}
@@ -225,7 +270,8 @@ def _render_run(run: dict) -> str:
         <div class="chips">{_render_model_chips(cons)}</div>
       </div>
 
-      {_render_edges_table(run.get("edges") or [], best_label)}
+      {_render_edges_table(run.get("edges") or [],
+                           best_label, likely_label, best_edge_label)}
     </section>
     """
 
@@ -435,9 +481,26 @@ def render_dashboard(payload: dict) -> str:
   table.edges .neg, table.acc .neg {{ color:var(--neg); }}
   table.edges .row--best {{ background:color-mix(in srgb, var(--mint) 8%, transparent); }}
   table.edges .row--best .t-label {{ color:var(--mint); }}
+  table.edges .row--likely {{ background:color-mix(in srgb, #6AB4E0 10%, transparent); }}
+  table.edges .row--likely .t-label {{ color:#9BD3F2; }}
+  table.edges .row--best.row--likely {{ background:color-mix(in srgb, var(--mint) 6%, color-mix(in srgb, #6AB4E0 10%, transparent)); }}
+  table.edges .mark {{ display:inline-block; font-size:10px;
+    padding:1px 7px; border-radius:999px; margin-inline-start:6px;
+    vertical-align:middle; font-weight:600; letter-spacing:0.3px; }}
+  table.edges .mark--best {{ background:var(--mint); color:var(--bg); }}
+  table.edges .mark--likely {{ background:#9BD3F2; color:var(--bg); }}
   table.acc .row--best {{ background:color-mix(in srgb, var(--mint) 6%, transparent); }}
   table.acc .row--best .t-label {{ color:var(--mint); font-weight:700; }}
   p.note {{ margin-top:8px; font-size:12px; }}
+
+  .sigchips {{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }}
+  .sigchip {{ display:inline-flex; gap:6px; align-items:baseline;
+    padding:4px 10px; border-radius:8px; font-size:12px;
+    border:1px solid var(--border); background:#0F1518; }}
+  .sigchip__label {{ color:var(--muted); }}
+  .sigchip__val {{ font-weight:600; }}
+  .sigchip--likely .sigchip__val {{ color:#9BD3F2; }}
+  .sigchip--edge .sigchip__val {{ color:var(--mint); }}
 
   .info {{ display:inline-block; margin-right:4px;
     width:14px; height:14px; line-height:14px; text-align:center;
