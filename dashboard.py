@@ -507,6 +507,61 @@ def _render_city_card(city_data: dict) -> str:
 # Accuracy
 # ─────────────────────────────────────────────
 
+def _render_accuracy_rows(scores_block: dict) -> str:
+    """בונה רשימת שורות לגוף טבלת האיכות — גם לגלובלי וגם לכל עיר."""
+    rows = []
+    items = list((scores_block.get("models") or {}).items())
+    items.sort(key=lambda kv: (kv[1]["mae"] if kv[1]["mae"] is not None else 999))
+    for name, s in items:
+        if (s.get("n") or 0) == 0:
+            rows.append(f'<tr><td>{_esc(name)}</td>'
+                        f'<td class="muted" colspan="6">אין נתונים</td></tr>')
+            continue
+        mae_cls = "pos" if s["mae"] is not None and s["mae"] < 1.0 else ""
+        bias_cls = "pos" if s["bias"] is not None and abs(s["bias"]) < 0.3 else ""
+        bhit_cls = "pos" if s["bucket_hit"] is not None and s["bucket_hit"] >= 0.5 else ""
+        rows.append(
+            f'<tr>'
+            f'<td class="t-label">{_esc(name)}</td>'
+            f'<td class="{mae_cls}">{_fmt(s["mae"],"°C",2)}</td>'
+            f'<td class="{bias_cls}">{_fmt(s["bias"],"°C",2) if s["bias"] is not None else "—"}</td>'
+            f'<td>{_pct(s["hit_1c"],0,signed=False) if s["hit_1c"] is not None else "—"}</td>'
+            f'<td class="{bhit_cls}">{_pct(s["bucket_hit"],0,signed=False) if s["bucket_hit"] is not None else "—"}</td>'
+            f'<td>{_fmt(s["rank_avg"],"",2)}</td>'
+            f'<td class="muted">{s["n"]}</td>'
+            f'</tr>'
+        )
+    c = scores_block.get("consensus") or {}
+    if c.get("n"):
+        rows.append(
+            f'<tr class="row--best">'
+            f'<td class="t-label">קונצנזוס</td>'
+            f'<td>{_fmt(c["mae"],"°C",2)}</td>'
+            f'<td>{_fmt(c["bias"],"°C",2)}</td>'
+            f'<td>{_pct(c["hit_1c"],0,signed=False) if c["hit_1c"] is not None else "—"}</td>'
+            f'<td>{_pct(c["bucket_hit"],0,signed=False) if c["bucket_hit"] is not None else "—"}</td>'
+            f'<td class="muted">—</td>'
+            f'<td class="muted">{c["n"]}</td>'
+            f'</tr>'
+        )
+    return "".join(rows)
+
+
+def _accuracy_table(scores_block: dict, title: str, intro: str = "") -> str:
+    return f"""
+    <h3 class="acc__sub">{_esc(title)}</h3>
+    {f'<p class="muted small">{_esc(intro)}</p>' if intro else ''}
+    <table class="acc">
+      <thead><tr>
+        <th>מודל</th><th>MAE</th><th>הטיה</th>
+        <th>פגיעה ±1°C</th><th>פגיעה ב-bucket</th>
+        <th>דירוג ממוצע</th><th>ימים</th>
+      </tr></thead>
+      <tbody>{_render_accuracy_rows(scores_block)}</tbody>
+    </table>
+    """
+
+
 def _render_accuracy(acc: Optional[dict]) -> str:
     if not acc or not (acc.get("global") or {}).get("days_measured"):
         return """
@@ -519,53 +574,37 @@ def _render_accuracy(acc: Optional[dict]) -> str:
         </section>
         """
     glob = acc["global"]
-    rows = []
-    items = list(glob["models"].items())
-    items.sort(key=lambda kv: (kv[1]["mae"] if kv[1]["mae"] is not None else 999))
-    for name, s in items:
-        if s["n"] == 0:
-            rows.append(f'<tr><td>{_esc(name)}</td>'
-                        f'<td class="muted" colspan="5">אין נתונים</td></tr>')
-            continue
-        mae_cls = "pos" if s["mae"] is not None and s["mae"] < 1.0 else ""
-        bias_cls = "pos" if s["bias"] is not None and abs(s["bias"]) < 0.3 else ""
-        rows.append(
-            f'<tr>'
-            f'<td class="t-label">{_esc(name)}</td>'
-            f'<td class="{mae_cls}">{_fmt(s["mae"],"°C",2)}</td>'
-            f'<td class="{bias_cls}">{_fmt(s["bias"],"°C",2) if s["bias"] is not None else "—"}</td>'
-            f'<td>{_pct(s["hit_1c"],0,signed=False) if s["hit_1c"] is not None else "—"}</td>'
-            f'<td>{_fmt(s["rank_avg"],"",2)}</td>'
-            f'<td class="muted">{s["n"]}</td>'
-            f'</tr>'
+
+    # הסבר על ההבדל בין MAE לפגיעה ב-bucket
+    explainer = (
+        "MAE מודד כמה המודל רחוק מהמדידה ברציפות; פגיעה ב-bucket מודד "
+        "האם round(חיזוי) שווה בדיוק ל-METAR — זה המדד שקובע אם היינו "
+        "מנצחים בפולימארקט לו השתמשנו במודל הזה לבד."
+    )
+
+    per_city_html = ""
+    per_city = acc.get("per_city") or {}
+    if len(per_city) >= 2:
+        per_city_blocks = []
+        for city_key, block in per_city.items():
+            per_city_blocks.append(
+                _accuracy_table(block, f"עיר: {city_key}",
+                                 f"{block.get('days_measured', 0)} ימים נמדדו בעיר זו.")
+            )
+        per_city_html = (
+            '<details class="acc__per-city"><summary>פיצול לפי עיר</summary>'
+            + "".join(per_city_blocks)
+            + "</details>"
         )
-    c = glob.get("consensus") or {}
-    cons_row = ""
-    if c.get("n"):
-        cons_row = (
-            f'<tr class="row--best">'
-            f'<td class="t-label">קונצנזוס</td>'
-            f'<td>{_fmt(c["mae"],"°C",2)}</td>'
-            f'<td>{_fmt(c["bias"],"°C",2)}</td>'
-            f'<td>{_pct(c["hit_1c"],0,signed=False) if c["hit_1c"] is not None else "—"}</td>'
-            f'<td class="muted">—</td>'
-            f'<td class="muted">{c["n"]}</td>'
-            f'</tr>'
-        )
+
     return f"""
     <section class="card card--acc">
       <h2>איכות מודלים לאורך זמן</h2>
       <p class="muted small">
-        {glob["days_measured"]} ימים שלמים נמדדו (כל הערים). עמודת MAE = שגיאה מוחלטת ממוצעת; נמוך יותר = טוב יותר.
-        עמודת הטיה קרובה לאפס = מודל ניטרלי.
+        {glob["days_measured"]} ימים שלמים נמדדו (כלל הערים). {_esc(explainer)}
       </p>
-      <table class="acc">
-        <thead><tr>
-          <th>מודל</th><th>MAE</th><th>הטיה</th>
-          <th>פגיעה ±1°C</th><th>דירוג ממוצע</th><th>ימים</th>
-        </tr></thead>
-        <tbody>{"".join(rows)}{cons_row}</tbody>
-      </table>
+      {_accuracy_table(glob, "גלובלי (כל הערים ביחד)")}
+      {per_city_html}
     </section>
     """
 
@@ -693,6 +732,11 @@ def render_dashboard(payload: dict) -> str:
   table.perf .pos {{ color:var(--pos); }}
   table.perf .neg {{ color:var(--neg); }}
   .perf__sub {{ margin:14px 0 6px 0; font-size:13px; color:var(--mint); }}
+  .acc__sub {{ margin:14px 0 6px 0; font-size:13px; color:var(--mint); font-weight:600; }}
+  .acc__per-city {{ margin-top:16px; padding-top:10px;
+    border-top:1px dashed var(--border); }}
+  .acc__per-city summary {{ cursor:pointer; color:var(--muted); font-size:13px; }}
+  .acc__per-city[open] summary {{ color:var(--mint); }}
 
   .city-card {{ padding:0; overflow:hidden; }}
   .city-details summary {{ cursor:pointer; list-style:none; padding:14px 18px;

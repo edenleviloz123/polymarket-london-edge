@@ -133,10 +133,18 @@ def refresh_observations_metar() -> Dict[str, Dict[str, float]]:
 # ─────────────────────────────────────────────
 
 def _empty_score() -> dict:
-    return {"n": 0, "mae": None, "bias": None, "hit_1c": None, "rank_avg": None}
+    return {"n": 0, "mae": None, "bias": None, "hit_1c": None,
+            "bucket_hit": None, "rank_avg": None}
 
 
-def _score(errors: List[float], ranks: Optional[List[int]] = None) -> dict:
+def _score(errors: List[float],
+           bucket_hits: Optional[List[bool]] = None,
+           ranks: Optional[List[int]] = None) -> dict:
+    """
+    errors: הפרשים רציפים (forecast_continuous - observed_int)
+    bucket_hits: האם round(forecast) == observed_int לכל תצפית
+    ranks: דירוג המודל מול המודלים האחרים באותו יום
+    """
     if not errors:
         return _empty_score()
     n = len(errors)
@@ -144,9 +152,12 @@ def _score(errors: List[float], ranks: Optional[List[int]] = None) -> dict:
     mae = sum(abs_errs) / n
     bias = sum(errors) / n
     hit = sum(1 for a in abs_errs if a <= ACCURACY_HIT_WINDOW_C) / n
+    bhit = (sum(1 for b in bucket_hits if b) / len(bucket_hits)
+            if bucket_hits else None)
     rank_avg = (sum(ranks) / len(ranks)) if ranks else None
     return {"n": n, "mae": mae, "bias": bias,
-            "hit_1c": hit, "rank_avg": rank_avg}
+            "hit_1c": hit, "bucket_hit": bhit,
+            "rank_avg": rank_avg}
 
 
 def compute_model_scores() -> dict:
@@ -174,20 +185,26 @@ def compute_model_scores() -> dict:
             latest[key] = {**r, "_city": city}
 
     # צבירה לכל עיר בנפרד
-    per_city_errors: Dict[str, Dict[str, List[float]]] = {}
-    per_city_ranks:  Dict[str, Dict[str, List[int]]]   = {}
-    per_city_cons:   Dict[str, List[float]]            = {}
-    per_city_days:   Dict[str, int]                    = {}
+    per_city_errors:  Dict[str, Dict[str, List[float]]] = {}
+    per_city_hits:    Dict[str, Dict[str, List[bool]]]  = {}
+    per_city_ranks:   Dict[str, Dict[str, List[int]]]   = {}
+    per_city_cons:    Dict[str, List[float]]            = {}
+    per_city_consh:   Dict[str, List[bool]]             = {}
+    per_city_days:    Dict[str, int]                    = {}
 
-    global_errors:   Dict[str, List[float]] = {m: [] for m in WEATHER_MODELS}
-    global_ranks:    Dict[str, List[int]]   = {m: [] for m in WEATHER_MODELS}
-    global_cons:     List[float]            = []
+    global_errors:  Dict[str, List[float]] = {m: [] for m in WEATHER_MODELS}
+    global_hits:    Dict[str, List[bool]]  = {m: [] for m in WEATHER_MODELS}
+    global_ranks:   Dict[str, List[int]]   = {m: [] for m in WEATHER_MODELS}
+    global_cons:    List[float]            = []
+    global_consh:   List[bool]             = []
 
     for (city_key, td), r in latest.items():
-        obs_v = obs[city_key][td]
+        obs_v = obs[city_key][td]   # מספר שלם מ-METAR
         per_city_errors.setdefault(city_key, {m: [] for m in WEATHER_MODELS})
-        per_city_ranks.setdefault(city_key, {m: [] for m in WEATHER_MODELS})
+        per_city_hits.setdefault(city_key,   {m: [] for m in WEATHER_MODELS})
+        per_city_ranks.setdefault(city_key,  {m: [] for m in WEATHER_MODELS})
         per_city_cons.setdefault(city_key, [])
+        per_city_consh.setdefault(city_key, [])
         per_city_days[city_key] = per_city_days.get(city_key, 0) + 1
 
         distances = []
@@ -195,8 +212,11 @@ def compute_model_scores() -> dict:
             if v is None or m not in WEATHER_MODELS:
                 continue
             err = v - obs_v
+            bucket_hit = (round(v) == obs_v)   # האם round(חיזוי) = METAR
             per_city_errors[city_key][m].append(err)
+            per_city_hits[city_key][m].append(bucket_hit)
             global_errors[m].append(err)
+            global_hits[m].append(bucket_hit)
             distances.append((abs(err), m))
         distances.sort()
         for rank_idx, (_, m) in enumerate(distances, start=1):
@@ -205,22 +225,27 @@ def compute_model_scores() -> dict:
         cm = r.get("consensus")
         if cm is not None:
             per_city_cons[city_key].append(cm - obs_v)
+            per_city_consh[city_key].append(round(cm) == obs_v)
             global_cons.append(cm - obs_v)
+            global_consh.append(round(cm) == obs_v)
 
     per_city_result = {}
     for city_key in per_city_errors:
         per_city_result[city_key] = {
             "models":        {m: _score(per_city_errors[city_key][m],
+                                        per_city_hits[city_key][m],
                                         per_city_ranks[city_key][m])
                               for m in WEATHER_MODELS},
-            "consensus":     _score(per_city_cons[city_key]),
+            "consensus":     _score(per_city_cons[city_key],
+                                    per_city_consh[city_key]),
             "days_measured": per_city_days[city_key],
         }
 
     global_result = {
-        "models":        {m: _score(global_errors[m], global_ranks[m])
+        "models":        {m: _score(global_errors[m], global_hits[m],
+                                    global_ranks[m])
                           for m in WEATHER_MODELS},
-        "consensus":     _score(global_cons),
+        "consensus":     _score(global_cons, global_consh),
         "days_measured": len(latest),
     }
 

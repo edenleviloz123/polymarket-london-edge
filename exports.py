@@ -392,7 +392,8 @@ def _sheet_accuracy(ws, accuracy: dict):
     ws.cell(row=row, column=1, value="איכות מודלים — מצטבר גלובלי").font = Font(size=13, bold=True, color="B5EBBF")
     row += 1
 
-    headers = ["מודל", "MAE (°C)", "הטיה (°C)", "פגיעה ב-±1°C", "דירוג ממוצע", "ימים"]
+    headers = ["מודל", "MAE (°C)", "הטיה (°C)", "פגיעה ב-±1°C",
+               "פגיעה ב-bucket", "דירוג ממוצע", "ימים"]
     for i, h in enumerate(headers, start=1):
         ws.cell(row=row, column=i, value=h)
     _style_header_row(ws, row, len(headers))
@@ -406,8 +407,9 @@ def _sheet_accuracy(ws, accuracy: dict):
         ws.cell(row=row, column=2, value=round(s["mae"], 3) if s.get("mae") is not None else None)
         ws.cell(row=row, column=3, value=round(s["bias"], 3) if s.get("bias") is not None else None)
         ws.cell(row=row, column=4, value=round(s["hit_1c"], 3) if s.get("hit_1c") is not None else None)
-        ws.cell(row=row, column=5, value=round(s["rank_avg"], 2) if s.get("rank_avg") is not None else None)
-        ws.cell(row=row, column=6, value=s.get("n"))
+        ws.cell(row=row, column=5, value=round(s["bucket_hit"], 3) if s.get("bucket_hit") is not None else None)
+        ws.cell(row=row, column=6, value=round(s["rank_avg"], 2) if s.get("rank_avg") is not None else None)
+        ws.cell(row=row, column=7, value=s.get("n"))
         row += 1
 
     cons = glob.get("consensus") or {}
@@ -416,14 +418,16 @@ def _sheet_accuracy(ws, accuracy: dict):
         ws.cell(row=row, column=2, value=round(cons["mae"], 3) if cons.get("mae") is not None else None)
         ws.cell(row=row, column=3, value=round(cons["bias"], 3) if cons.get("bias") is not None else None)
         ws.cell(row=row, column=4, value=round(cons["hit_1c"], 3) if cons.get("hit_1c") is not None else None)
-        ws.cell(row=row, column=6, value=cons.get("n"))
+        ws.cell(row=row, column=5, value=round(cons["bucket_hit"], 3) if cons.get("bucket_hit") is not None else None)
+        ws.cell(row=row, column=7, value=cons.get("n"))
         row += 1
 
     # פירוט לפי עיר
     row += 2
     ws.cell(row=row, column=1, value="איכות מודלים — לפי עיר").font = Font(size=13, bold=True, color="B5EBBF")
     row += 1
-    headers2 = ["עיר", "מודל", "MAE", "הטיה", "פגיעה ב-±1°C", "דירוג ממוצע", "ימים"]
+    headers2 = ["עיר", "מודל", "MAE", "הטיה", "פגיעה ב-±1°C",
+                "פגיעה ב-bucket", "דירוג ממוצע", "ימים"]
     for i, h in enumerate(headers2, start=1):
         ws.cell(row=row, column=i, value=h)
     _style_header_row(ws, row, len(headers2))
@@ -437,8 +441,9 @@ def _sheet_accuracy(ws, accuracy: dict):
             ws.cell(row=row, column=3, value=round(s["mae"], 3))
             ws.cell(row=row, column=4, value=round(s["bias"], 3))
             ws.cell(row=row, column=5, value=round(s["hit_1c"], 3))
-            ws.cell(row=row, column=6, value=round(s["rank_avg"], 2) if s.get("rank_avg") is not None else None)
-            ws.cell(row=row, column=7, value=s.get("n"))
+            ws.cell(row=row, column=6, value=round(s["bucket_hit"], 3) if s.get("bucket_hit") is not None else None)
+            ws.cell(row=row, column=7, value=round(s["rank_avg"], 2) if s.get("rank_avg") is not None else None)
+            ws.cell(row=row, column=8, value=s.get("n"))
             row += 1
 
     _autosize(ws)
