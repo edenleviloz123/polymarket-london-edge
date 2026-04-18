@@ -67,16 +67,42 @@ def fetch_forecasts(forecast_days: int = 4) -> Dict[str, Dict[str, Optional[floa
     return result
 
 
-def consensus(per_model: Dict[str, Optional[float]]) -> dict:
+def detect_outliers(per_model: Dict[str, Optional[float]],
+                    threshold_c: float) -> Dict[str, float]:
     """
-    מחשב ממוצע קונצנזוס + סטיית תקן בין-מודלית על הערכים שזמינים.
-    n הוא מספר המודלים שהגיבו בהצלחה.
+    מודל שחורג יותר מ-threshold_c מהחציון של השאר נחשב חריג.
+    מחזיר {שם_מודל: סטיה_מהחציון} רק עבור החריגים.
     """
     available = {m: v for m, v in per_model.items() if v is not None}
-    n = len(available)
+    if len(available) < 3:
+        return {}
+    vals = sorted(available.values())
+    # חציון (של n זוגי — ממוצע של שני האמצעיים)
+    n = len(vals)
+    median = vals[n // 2] if n % 2 == 1 else (vals[n // 2 - 1] + vals[n // 2]) / 2
+    outliers = {}
+    for name, v in available.items():
+        deviation = v - median
+        if abs(deviation) > threshold_c:
+            outliers[name] = deviation
+    return outliers
+
+
+def consensus(per_model: Dict[str, Optional[float]],
+              outliers: Optional[Dict[str, float]] = None) -> dict:
+    """
+    מחשב ממוצע קונצנזוס + סטיית תקן בין-מודלית על הערכים שזמינים.
+    אם outliers סופקו — הם מוסרים לפני חישוב הממוצע.
+    n הוא מספר המודלים שהגיבו בהצלחה ולא סומנו כחריגים.
+    """
+    outliers = outliers or {}
+    used = {m: v for m, v in per_model.items()
+            if v is not None and m not in outliers}
+    n = len(used)
     if n == 0:
-        return {"mean": None, "std": None, "n": 0, "models": {}, "all_models": per_model}
-    values = list(available.values())
+        return {"mean": None, "std": None, "n": 0,
+                "models": {}, "all_models": per_model, "outliers": outliers}
+    values = list(used.values())
     mean = sum(values) / n
     if n >= 2:
         var = sum((v - mean) ** 2 for v in values) / (n - 1)
@@ -87,6 +113,7 @@ def consensus(per_model: Dict[str, Optional[float]]) -> dict:
         "mean":       mean,
         "std":        std,
         "n":          n,
-        "models":     available,      # רק הזמינים
-        "all_models": per_model,      # כולל None לציון "נכשל"
+        "models":     used,           # רק הזמינים + לא-חריגים
+        "all_models": per_model,      # כולל None וכולל outliers
+        "outliers":   outliers,       # שמות + סטיה מהחציון
     }

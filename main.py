@@ -1,9 +1,11 @@
 """
 Orchestrator — נקודת הכניסה:
 1. שולף תחזיות מ-5 מודלים
-2. מוצא את אירוע Polymarket לתאריכים היום+מחר (slug ישיר → fallback לסריקה רחבה)
-3. מחשב הסתברויות וקליב' Edge לכל bucket
-4. מפיק HTML סטטי + JSON היסטורי
+2. מזהה חריגים בין-מודלים ומסיר אותם מהקונצנזוס
+3. מוצא את אירוע Polymarket לתאריכים היום+מחר
+4. מחשב הסתברויות ו-Edge לכל bucket
+5. שומר לוג תחזיות + מרענן תצפיות + מחשב מדדי דיוק
+6. מפיק HTML סטטי + JSON
 """
 import datetime as dt
 import json
@@ -11,9 +13,13 @@ import logging
 import os
 from typing import Optional
 
+from accuracy import (
+    append_forecast_snapshot, compute_model_scores, refresh_observations,
+)
 from config import (
     HISTORY_JSON, HISTORY_MAX_ENTRIES,
     MIN_MODELS_REQUIRED,
+    OUTLIER_THRESHOLD_C,
     OUTPUT_DIR, OUTPUT_HTML, OUTPUT_JSON,
     TIMEZONE_TZ,
 )
@@ -23,7 +29,7 @@ from markets import (
     broad_scan, build_candidate_slugs,
     event_to_contracts, fetch_event_by_slug,
 )
-from weather import consensus, fetch_forecasts
+from weather import consensus, detect_outliers, fetch_forecasts
 
 logging.basicConfig(
     level=logging.INFO,
@@ -59,9 +65,20 @@ def find_event_for_date(target_date: dt.date) -> Optional[dict]:
     return None
 
 
-def run_for_date(target_date: dt.date, forecasts: dict) -> dict:
+def run_for_date(target_date: dt.date, forecasts: dict, ts_iso: str) -> dict:
     per_model = forecasts.get(target_date.isoformat(), {})
-    cons = consensus(per_model)
+    outliers = detect_outliers(per_model, OUTLIER_THRESHOLD_C)
+    cons = consensus(per_model, outliers=outliers)
+
+    # לוג התחזית בכל הרצה (כולל חריגים, כדי שנוכל לצבור דיוק היסטורי)
+    append_forecast_snapshot(
+        target_date=target_date,
+        per_model=per_model,
+        consensus_mean=cons.get("mean"),
+        consensus_std=cons.get("std"),
+        ts_iso=ts_iso,
+    )
+
     ev = find_event_for_date(target_date)
     contracts = event_to_contracts(ev) if ev else []
 
@@ -74,7 +91,7 @@ def run_for_date(target_date: dt.date, forecasts: dict) -> dict:
         signal = classify_signal(edges)
     elif cons["n"] < MIN_MODELS_REQUIRED:
         signal["rationale"] = (
-            f"רק {cons['n']}/{len(cons.get('all_models') or {})} מודלים הגיבו — "
+            f"רק {cons['n']}/{len(cons.get('all_models') or {})} מודלים זמינים ולא חריגים — "
             f"פחות מהסף המינימלי ({MIN_MODELS_REQUIRED}). ממתינים לנתונים נוספים."
         )
     elif not contracts:
@@ -109,6 +126,7 @@ def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     now = dt.datetime.now(TIMEZONE_TZ)
     today = now.date()
+    ts_iso = now.isoformat()
 
     try:
         forecasts = fetch_forecasts(forecast_days=4)
@@ -117,18 +135,27 @@ def main():
         forecasts = {}
 
     target_dates = [today, today + dt.timedelta(days=1)]
-    runs = [run_for_date(d, forecasts) for d in target_dates]
+    runs = [run_for_date(d, forecasts, ts_iso) for d in target_dates]
+
+    # רענון תצפיות לתאריכים שחלפו + חישוב מדדי דיוק
+    try:
+        refresh_observations()
+        accuracy = compute_model_scores()
+    except Exception as e:
+        log.warning("חישוב דיוק נכשל: %s", e)
+        accuracy = None
 
     payload = {
-        "generated_at": now.isoformat(),
+        "generated_at": ts_iso,
         "timezone":     str(TIMEZONE_TZ),
         "runs":         runs,
+        "accuracy":     accuracy,
     }
 
     with open(OUTPUT_JSON, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2, default=str)
 
-    # עדכון היסטוריה
+    # עדכון היסטוריה תמציתית (לצורך גרפים עתידיים)
     history = []
     if os.path.exists(HISTORY_JSON):
         try:
@@ -137,7 +164,7 @@ def main():
         except Exception as e:
             log.warning("לא הצלחתי לקרוא היסטוריה קודמת: %s — מתחיל מחדש", e)
             history = []
-    history.append({"ts": now.isoformat(),
+    history.append({"ts": ts_iso,
                     "runs": [_history_row(r) for r in runs]})
     history = history[-HISTORY_MAX_ENTRIES:]
     with open(HISTORY_JSON, "w", encoding="utf-8") as f:
