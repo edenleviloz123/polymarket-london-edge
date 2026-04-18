@@ -147,6 +147,46 @@ def _render_performance(perf: Optional[dict]) -> str:
 
     pnl_cls = "pos" if realized > 0 else ("neg" if realized < 0 else "")
 
+    # פיצול לפי אסטרטגיה — שני תיקים מקבילים
+    STRATEGY_LABEL = {"max_edge": "יתרון מקסימלי", "most_likely": "הסביר ביותר"}
+    strat_rows_html = []
+    by_strategy = perf.get("by_strategy") or {}
+    for s_name in ("max_edge", "most_likely"):
+        s = by_strategy.get(s_name) or {}
+        if s.get("total", 0) == 0:
+            continue
+        s_pnl = s.get("realized_pnl") or 0
+        cls = "pos" if s_pnl > 0 else ("neg" if s_pnl < 0 else "")
+        wr = s.get("win_rate")
+        wr_txt = f"{wr*100:.0f}%" if wr is not None else "—"
+        roi = s.get("roi_on_settled_stake")
+        roi_txt = f"{roi*100:+.1f}%" if roi is not None else "—"
+        strat_rows_html.append(
+            f'<tr>'
+            f'<td class="t-label">{_esc(STRATEGY_LABEL[s_name])}</td>'
+            f'<td>{s.get("total",0)}</td>'
+            f'<td>{s.get("won",0)}</td>'
+            f'<td>{s.get("lost",0)}</td>'
+            f'<td>{s.get("pending",0)}</td>'
+            f'<td>{wr_txt}</td>'
+            f'<td class="{cls}">${s_pnl:+.2f}</td>'
+            f'<td>{roi_txt}</td>'
+            f'</tr>'
+        )
+    strat_table = ""
+    if strat_rows_html:
+        strat_table = f"""
+        <h3 class="perf__sub">השוואת אסטרטגיות</h3>
+        <p class="muted small">שני תיקים מדומים מקבילים: "יתרון מקסימלי" מהמר על ה-bucket עם הפער הגדול ביותר; "הסביר ביותר" מהמר על ה-bucket עם ההסתברות הגבוהה ביותר שגם עובר את סף הקנייה.</p>
+        <table class="perf">
+          <thead><tr>
+            <th>אסטרטגיה</th><th>סה"כ</th><th>זכיות</th><th>הפסדים</th>
+            <th>פתוחים</th><th>אחוז זכייה</th><th>P&L</th><th>ROI</th>
+          </tr></thead>
+          <tbody>{"".join(strat_rows_html)}</tbody>
+        </table>
+        """
+
     per_city_rows = []
     for city_key, slot in (perf.get("per_city") or {}).items():
         cls = "pos" if (slot["pnl"] or 0) > 0 else ("neg" if (slot["pnl"] or 0) < 0 else "")
@@ -163,6 +203,7 @@ def _render_performance(perf: Optional[dict]) -> str:
     city_table = ""
     if per_city_rows:
         city_table = f"""
+        <h3 class="perf__sub">פיצול לפי עיר (כל האסטרטגיות)</h3>
         <table class="perf">
           <thead><tr>
             <th>עיר</th><th>סה"כ</th><th>זכיות</th><th>הפסדים</th>
@@ -185,6 +226,7 @@ def _render_performance(perf: Optional[dict]) -> str:
         <div><span class="muted">סטייק פתוח</span><strong>${pending_stake:.2f}</strong></div>
         <div><span class="muted">ROI על סטייק סגור</span><strong>{_pct(roi, 1, signed=True) if roi is not None else "—"}</strong></div>
       </div>
+      {strat_table}
       {city_table}
     </section>
     """
@@ -596,6 +638,7 @@ def render_dashboard(payload: dict) -> str:
   table.perf th {{ color:var(--muted); font-weight:500; }}
   table.perf .pos {{ color:var(--pos); }}
   table.perf .neg {{ color:var(--neg); }}
+  .perf__sub {{ margin:14px 0 6px 0; font-size:13px; color:var(--mint); }}
 
   .city-card {{ padding:0; overflow:hidden; }}
   .city-details summary {{ cursor:pointer; list-style:none; padding:14px 18px;

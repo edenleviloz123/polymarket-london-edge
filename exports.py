@@ -73,14 +73,15 @@ def export_signals_csv() -> int:
     with open(SIGNALS_CSV, "w", encoding="utf-8-sig", newline="") as f:
         w = csv.writer(f)
         w.writerow([
-            "timestamp", "city", "target_date", "action", "bucket",
+            "timestamp", "strategy", "city", "target_date", "action", "bucket",
             "bucket_type", "bucket_temp", "our_prob", "yes_price",
             "edge", "kelly", "ev", "stake_usd", "status", "outcome_pnl",
             "observed_max", "settled_at",
         ])
         for r in rows:
             w.writerow([
-                r.get("ts"), r.get("city"), r.get("target_date"),
+                r.get("ts"), r.get("strategy") or "max_edge",
+                r.get("city"), r.get("target_date"),
                 r.get("action"), r.get("bucket_label"),
                 r.get("bucket_type"), r.get("bucket_temp"),
                 r.get("our_prob"), r.get("yes_price"),
@@ -233,9 +234,32 @@ def _sheet_summary(ws, performance: dict, accuracy: dict, generated_at: str):
         ws.cell(row=row, column=2, value=value)
         row += 1
 
+    # פירוט לפי אסטרטגיה
+    row += 1
+    ws.cell(row=row, column=1, value="ביצועים לפי אסטרטגיה").font = Font(size=13, bold=True, color="B5EBBF")
+    row += 1
+    headers_s = ["אסטרטגיה", "סה״כ", "זכיות", "הפסדים", "פתוחים", "אחוז זכייה", "P&L ($)", "ROI"]
+    for i, h in enumerate(headers_s, start=1):
+        ws.cell(row=row, column=i, value=h)
+    _style_header_row(ws, row, len(headers_s))
+    row += 1
+    names_he = {"max_edge": "יתרון מקסימלי", "most_likely": "הסביר ביותר"}
+    for s_name, s in (performance.get("by_strategy") or {}).items():
+        if (s.get("total") or 0) == 0:
+            continue
+        ws.cell(row=row, column=1, value=names_he.get(s_name, s_name))
+        ws.cell(row=row, column=2, value=s.get("total", 0))
+        ws.cell(row=row, column=3, value=s.get("won", 0))
+        ws.cell(row=row, column=4, value=s.get("lost", 0))
+        ws.cell(row=row, column=5, value=s.get("pending", 0))
+        ws.cell(row=row, column=6, value=s.get("win_rate"))
+        ws.cell(row=row, column=7, value=s.get("realized_pnl"))
+        ws.cell(row=row, column=8, value=s.get("roi_on_settled_stake"))
+        row += 1
+
     # פירוט לפי עיר
     row += 1
-    ws.cell(row=row, column=1, value="ביצועים לפי עיר").font = Font(size=13, bold=True, color="B5EBBF")
+    ws.cell(row=row, column=1, value="ביצועים לפי עיר (כל האסטרטגיות)").font = Font(size=13, bold=True, color="B5EBBF")
     row += 1
     headers = ["עיר", "סה״כ", "זכיות", "הפסדים", "פתוחים", "רווח (דולר)"]
     for i, h in enumerate(headers, start=1):
@@ -257,7 +281,7 @@ def _sheet_summary(ws, performance: dict, accuracy: dict, generated_at: str):
 def _sheet_signals(ws):
     rows = _load_jsonl(SIGNALS_LOG)
     headers = [
-        "תאריך-שעה הרישום", "עיר", "תאריך יעד", "פעולה", "bucket",
+        "תאריך-שעה הרישום", "אסטרטגיה", "עיר", "תאריך יעד", "פעולה", "bucket",
         "הסתברות שלנו", "מחיר שוק YES", "יתרון", "Kelly", "EV",
         "סטייק ($)", "סטטוס", "רווח/הפסד ($)", "טמפ' שנמדדה",
     ]
@@ -266,22 +290,22 @@ def _sheet_signals(ws):
     _style_header_row(ws, 1, len(headers))
 
     for i, r in enumerate(rows, start=2):
-        ws.cell(row=i, column=1, value=r.get("ts"))
-        ws.cell(row=i, column=2, value=r.get("city"))
-        ws.cell(row=i, column=3, value=r.get("target_date"))
-        ws.cell(row=i, column=4, value=r.get("action"))
-        ws.cell(row=i, column=5, value=r.get("bucket_label"))
-        ws.cell(row=i, column=6, value=r.get("our_prob"))
-        ws.cell(row=i, column=7, value=r.get("yes_price"))
-        ws.cell(row=i, column=8, value=r.get("edge"))
-        ws.cell(row=i, column=9, value=r.get("kelly"))
-        ws.cell(row=i, column=10, value=r.get("ev"))
-        ws.cell(row=i, column=11, value=r.get("stake_usd"))
-        ws.cell(row=i, column=12, value=r.get("status"))
-        ws.cell(row=i, column=13, value=r.get("outcome_pnl"))
-        ws.cell(row=i, column=14, value=r.get("observed_max"))
+        ws.cell(row=i, column=1,  value=r.get("ts"))
+        ws.cell(row=i, column=2,  value=r.get("strategy") or "max_edge")
+        ws.cell(row=i, column=3,  value=r.get("city"))
+        ws.cell(row=i, column=4,  value=r.get("target_date"))
+        ws.cell(row=i, column=5,  value=r.get("action"))
+        ws.cell(row=i, column=6,  value=r.get("bucket_label"))
+        ws.cell(row=i, column=7,  value=r.get("our_prob"))
+        ws.cell(row=i, column=8,  value=r.get("yes_price"))
+        ws.cell(row=i, column=9,  value=r.get("edge"))
+        ws.cell(row=i, column=10, value=r.get("kelly"))
+        ws.cell(row=i, column=11, value=r.get("ev"))
+        ws.cell(row=i, column=12, value=r.get("stake_usd"))
+        ws.cell(row=i, column=13, value=r.get("status"))
+        ws.cell(row=i, column=14, value=r.get("outcome_pnl"))
+        ws.cell(row=i, column=15, value=r.get("observed_max"))
 
-        # צביעה של השורה לפי סטטוס
         st = r.get("status") or "pending"
         fill = _WON_FILL if st == "won" else (_LOST_FILL if st == "lost" else _PEND_FILL)
         for c in range(1, len(headers) + 1):
