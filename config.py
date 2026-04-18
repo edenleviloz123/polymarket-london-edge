@@ -5,10 +5,13 @@
 from zoneinfo import ZoneInfo
 
 # ── מיקום הפיזי של חוזי הטמפרטורה ──────────────────────────
-CITY_NAME_HE = "לונדון"
-CITY_NAME_EN = "London"
-LAT = 51.4700                    # שדה התעופה הית'רו
-LON = -0.4543
+# חשוב: Polymarket מיישב את החוזים לפי התחזית ל-London City Airport (EGLC)
+# כפי שמצויין ב-"Resolution source" של האירוע ב-Wunderground,
+# ולא לפי Heathrow (EGLL). הקואורדינטות למטה הן של EGLC.
+CITY_NAME_HE = "לונדון (City Airport / EGLC)"
+CITY_NAME_EN = "London City Airport"
+LAT = 51.5048                    # London City Airport (EGLC) — תחנת הייחוס של Polymarket
+LON = 0.0495
 TIMEZONE = "Europe/London"
 TIMEZONE_TZ = ZoneInfo(TIMEZONE)
 
