@@ -21,7 +21,7 @@ from config import (
     MIN_MODELS_REQUIRED,
     OUTLIER_THRESHOLD_C,
     OUTPUT_DIR, OUTPUT_HTML, OUTPUT_JSON,
-    TIMEZONE_TZ,
+    TIMEZONE_TZ, USER_TZ, USER_TZ_NAME,
 )
 from dashboard import render_dashboard
 from edge import classify_signal, compute_edges
@@ -145,11 +145,17 @@ def main():
         log.warning("חישוב דיוק נכשל: %s", e)
         accuracy = None
 
+    now_user = now.astimezone(USER_TZ)
     payload = {
-        "generated_at": ts_iso,
-        "timezone":     str(TIMEZONE_TZ),
-        "runs":         runs,
-        "accuracy":     accuracy,
+        "generated_at":         ts_iso,                       # ISO עם offset לונדון
+        "generated_at_utc_ms":  int(now.timestamp() * 1000),  # Unix ms (למונה "לפני X דקות")
+        "generated_local":      now.strftime("%H:%M"),        # שעה בלונדון
+        "generated_user":       now_user.strftime("%H:%M"),   # שעה בישראל
+        "generated_date_local": now.strftime("%Y-%m-%d"),
+        "timezone_local":       str(TIMEZONE_TZ),
+        "timezone_user":        USER_TZ_NAME,
+        "runs":                 runs,
+        "accuracy":             accuracy,
     }
 
     with open(OUTPUT_JSON, "w", encoding="utf-8") as f:

@@ -340,12 +340,16 @@ def _render_intro() -> str:
 def render_dashboard(payload: dict) -> str:
     runs_html = "".join(_render_run(r) for r in payload.get("runs", []))
     acc_html  = _render_accuracy(payload.get("accuracy"))
-    generated = _esc(payload.get("generated_at"))
+    gen_utc_ms = int(payload.get("generated_at_utc_ms") or 0)
+    gen_local  = _esc(payload.get("generated_local", "—"))
+    gen_user   = _esc(payload.get("generated_user", "—"))
+    gen_date   = _esc(payload.get("generated_date_local", ""))
     return f"""<!doctype html>
 <html lang="he" dir="rtl">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="refresh" content="300">
 <title>שכבת מודיעין כמותי — {_esc(CITY_NAME_HE)}</title>
 <style>
   :root {{
@@ -357,11 +361,20 @@ def render_dashboard(payload: dict) -> str:
   html,body {{ margin:0; background:var(--bg); color:var(--text);
     font-family:'Segoe UI', 'Heebo', 'Rubik', system-ui, sans-serif; }}
   body {{ padding:24px; max-width:1200px; margin:0 auto; }}
-  header.top {{ display:flex; justify-content:space-between; align-items:baseline;
+  header.top {{ display:flex; justify-content:space-between; align-items:flex-start;
     border-bottom:1px solid var(--border); padding-bottom:16px; margin-bottom:20px; gap:16px; flex-wrap:wrap; }}
   header.top h1 {{ margin:0; font-size:22px; font-weight:600; }}
   header.top h1 span {{ color:var(--mint); }}
-  header.top .ts {{ color:var(--muted); font-size:13px; }}
+  header.top .ts {{ color:var(--muted); font-size:13px; text-align:left;
+    display:flex; flex-direction:column; gap:3px; }}
+  header.top .ts__row {{ display:flex; gap:6px; align-items:baseline; flex-wrap:wrap; }}
+  header.top .ts strong {{ color:var(--text); font-weight:600; }}
+  header.top .sep {{ color:var(--border); }}
+  header.top .age {{ font-size:12px; padding:2px 8px; border-radius:999px;
+    background:var(--border); color:var(--muted); margin-top:2px; }}
+  header.top .age.fresh {{ background:color-mix(in srgb, var(--pos) 18%, transparent); color:var(--pos); }}
+  header.top .age.mid   {{ background:color-mix(in srgb, var(--warn) 18%, transparent); color:var(--warn); }}
+  header.top .age.stale {{ background:color-mix(in srgb, var(--neg) 18%, transparent); color:var(--neg); }}
   .muted {{ color:var(--muted); }}
   .small {{ font-size:12px; }}
 
@@ -438,7 +451,20 @@ def render_dashboard(payload: dict) -> str:
 <body>
   <header class="top">
     <h1>שכבת מודיעין כמותי — <span>{_esc(CITY_NAME_HE)}</span></h1>
-    <div class="ts">רוענן לאחרונה: {generated}</div>
+    <div class="ts">
+      <div class="ts__row">
+        <span class="muted">רוענן לאחרונה בתאריך</span>
+        <strong>{gen_date}</strong>
+      </div>
+      <div class="ts__row">
+        <span class="muted">לונדון</span><strong>{gen_local}</strong>
+        <span class="sep">·</span>
+        <span class="muted">ישראל</span><strong>{gen_user}</strong>
+      </div>
+      <div class="ts__row">
+        <span class="age" id="age-indicator" data-ts="{gen_utc_ms}">מחשב גיל הנתונים…</span>
+      </div>
+    </div>
   </header>
 
   {_render_intro()}
@@ -448,7 +474,53 @@ def render_dashboard(payload: dict) -> str:
   <footer>
     <div>תחזיות: Open-Meteo (חמישה מודלים). מחירים: Polymarket Gamma API. תצפיות: Open-Meteo Archive/ERA5.</div>
     <div>סף קנייה: יתרון של 3% ומעלה. סף חזק: 8% ומעלה.</div>
+    <div>הדף מתרענן אוטומטית כל 5 דקות. ניתן לרענן ידנית בכל רגע.</div>
   </footer>
+
+  <script>
+    // מונה חי: מראה כמה זמן עבר מאז העדכון האחרון.
+    // צבע הכרטיסיה משתנה לפי הגיל: ירוק עד 6 דק', צהוב עד 12 דק', אדום מעבר.
+    (function () {{
+      var el = document.getElementById('age-indicator');
+      if (!el) return;
+      var ts = parseInt(el.getAttribute('data-ts') || '0', 10);
+      if (!ts) {{ el.textContent = ''; return; }}
+
+      function fmt(ms) {{
+        var s = Math.max(0, Math.floor(ms / 1000));
+        if (s < 60) return 'עודכן לפני ' + s + ' שניות';
+        var m = Math.floor(s / 60);
+        if (m < 60) return 'עודכן לפני ' + m + ' דק׳';
+        var h = Math.floor(m / 60);
+        var mm = m % 60;
+        return 'עודכן לפני ' + h + ' שעות ו-' + mm + ' דק׳';
+      }}
+
+      function tick() {{
+        var age = Date.now() - ts;
+        el.textContent = fmt(age);
+        el.classList.remove('fresh', 'mid', 'stale');
+        if (age < 6 * 60000) el.classList.add('fresh');
+        else if (age < 12 * 60000) el.classList.add('mid');
+        else el.classList.add('stale');
+      }}
+
+      tick();
+      setInterval(tick, 15000);
+    }})();
+
+    // רענון חוזר עם cache-busting כדי לעקוף את ה-CDN של GitHub Pages.
+    // meta refresh בלבד לא תמיד חד-פעמי ביחס לקאש.
+    setTimeout(function () {{
+      try {{
+        var u = new URL(location.href);
+        u.searchParams.set('_', Date.now().toString());
+        location.replace(u.toString());
+      }} catch (e) {{
+        location.reload();
+      }}
+    }}, 300000);
+  </script>
 </body>
 </html>
 """

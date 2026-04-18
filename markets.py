@@ -27,10 +27,21 @@ BUCKET_SINGLE_RE = re.compile(r"(-?\d+)\s*°?\s*C\b",                       re.I
 
 
 def _http_get(url: str, params: Optional[dict] = None) -> Any:
+    # Cache-busting: מוסיפים חותמת זמן וכותרות שמונעים קאש של CDN/פרוקסי.
+    # Gamma יכולה להיות מאחורי שכבת קאש; רוצים מחירים חיים בכל הרצה.
+    params = dict(params or {})
+    params["_t"] = int(time.time() * 1000)
+    headers = {
+        "Cache-Control": "no-cache, no-store, max-age=0",
+        "Pragma":        "no-cache",
+        "Accept":        "application/json",
+        "User-Agent":    "polymarket-london-edge/1.0",
+    }
     last_err = None
     for attempt in range(HTTP_RETRIES):
         try:
-            r = requests.get(url, params=params or {}, timeout=HTTP_TIMEOUT)
+            r = requests.get(url, params=params, headers=headers,
+                             timeout=HTTP_TIMEOUT)
             r.raise_for_status()
             return r.json()
         except Exception as e:

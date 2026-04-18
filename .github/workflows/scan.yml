@@ -2,7 +2,7 @@ name: Scan Polymarket Weather Edges
 
 on:
   schedule:
-    - cron: "*/20 * * * *"   # כל 20 דקות
+    - cron: "*/5 * * * *"    # כל 5 דקות (המינימום של GitHub Actions)
   workflow_dispatch:           # הרצה ידנית
   push:
     branches: [main]
