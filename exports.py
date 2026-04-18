@@ -75,8 +75,9 @@ def export_signals_csv() -> int:
         w.writerow([
             "timestamp", "strategy", "city", "target_date", "action", "bucket",
             "bucket_type", "bucket_temp", "our_prob", "yes_price",
-            "edge", "kelly", "ev", "stake_usd", "status", "outcome_pnl",
-            "observed_max", "settled_at",
+            "edge", "kelly", "ev", "stake_usd",
+            "minutes_to_close", "timing",
+            "status", "outcome_pnl", "observed_max", "settled_at",
         ])
         for r in rows:
             w.writerow([
@@ -86,9 +87,10 @@ def export_signals_csv() -> int:
                 r.get("bucket_type"), r.get("bucket_temp"),
                 r.get("our_prob"), r.get("yes_price"),
                 r.get("edge"), r.get("kelly"), r.get("ev"),
-                r.get("stake_usd"), r.get("status"),
-                r.get("outcome_pnl"), r.get("observed_max"),
-                r.get("settled_at"),
+                r.get("stake_usd"),
+                r.get("minutes_to_close"), r.get("timing"),
+                r.get("status"), r.get("outcome_pnl"),
+                r.get("observed_max"), r.get("settled_at"),
             ])
     return len(rows)
 
@@ -283,7 +285,8 @@ def _sheet_signals(ws):
     headers = [
         "תאריך-שעה הרישום", "אסטרטגיה", "עיר", "תאריך יעד", "פעולה", "bucket",
         "הסתברות שלנו", "מחיר שוק YES", "יתרון", "Kelly", "EV",
-        "סטייק ($)", "סטטוס", "רווח/הפסד ($)", "טמפ' שנמדדה",
+        "סטייק ($)", "דק׳ לסגירה", "קטגוריית תזמון",
+        "סטטוס", "רווח/הפסד ($)", "טמפ' שנמדדה",
     ]
     for i, h in enumerate(headers, start=1):
         ws.cell(row=1, column=i, value=h)
@@ -302,9 +305,11 @@ def _sheet_signals(ws):
         ws.cell(row=i, column=10, value=r.get("kelly"))
         ws.cell(row=i, column=11, value=r.get("ev"))
         ws.cell(row=i, column=12, value=r.get("stake_usd"))
-        ws.cell(row=i, column=13, value=r.get("status"))
-        ws.cell(row=i, column=14, value=r.get("outcome_pnl"))
-        ws.cell(row=i, column=15, value=r.get("observed_max"))
+        ws.cell(row=i, column=13, value=r.get("minutes_to_close"))
+        ws.cell(row=i, column=14, value=r.get("timing"))
+        ws.cell(row=i, column=15, value=r.get("status"))
+        ws.cell(row=i, column=16, value=r.get("outcome_pnl"))
+        ws.cell(row=i, column=17, value=r.get("observed_max"))
 
         st = r.get("status") or "pending"
         fill = _WON_FILL if st == "won" else (_LOST_FILL if st == "lost" else _PEND_FILL)

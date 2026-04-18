@@ -12,7 +12,7 @@ import datetime as dt
 import json
 import logging
 import os
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from config import (
     EDGE_THRESHOLD_BUY, KELLY_FRACTION, MIN_PROB_FOR_BUY,
@@ -62,8 +62,37 @@ def _signal_id(strategy: str, city_key: str, target_date: str,
     return f"{strategy}|{city_key}|{target_date}|{bucket_label}"
 
 
+def _minutes_to_close(ts_iso: str, event_end: Optional[str]) -> Optional[int]:
+    """מרחק בדקות בין ts_iso לזמן סגירת האירוע בפולימארקט (endDate)."""
+    if not event_end:
+        return None
+    try:
+        end_str = event_end.replace("Z", "+00:00") if event_end.endswith("Z") else event_end
+        end_dt = dt.datetime.fromisoformat(end_str)
+        ts_dt = dt.datetime.fromisoformat(ts_iso)
+        if end_dt.tzinfo is None:
+            end_dt = end_dt.replace(tzinfo=dt.timezone.utc)
+        if ts_dt.tzinfo is None:
+            ts_dt = ts_dt.replace(tzinfo=dt.timezone.utc)
+        return max(0, int((end_dt - ts_dt).total_seconds() / 60))
+    except Exception:
+        return None
+
+
+def _timing_bucket(minutes: Optional[int]) -> Optional[str]:
+    """קטגוריזציה של איכות תזמון — מוקדם/אמצע/מאוחר."""
+    if minutes is None:
+        return None
+    if minutes >= 480:
+        return "early"       # יותר מ-8 שעות לפני סגירה
+    if minutes >= 60:
+        return "mid"         # בין שעה ל-8 שעות
+    return "late"            # פחות משעה — שוק קרוב להתייצב
+
+
 def _record_one(city_key: str, target_date: dt.date, strategy: str,
-                 bucket_edge: dict, action: str, ts_iso: str) -> None:
+                 bucket_edge: dict, action: str, ts_iso: str,
+                 event_end: Optional[str] = None) -> None:
     """רישום עסקה מדומה אחת עבור אסטרטגיה מסוימת."""
     bucket = bucket_edge.get("bucket") or {}
     label = bucket.get("label")
@@ -87,39 +116,48 @@ def _record_one(city_key: str, target_date: dt.date, strategy: str,
     if stake_usd < 1.0:
         stake_usd = 1.0
 
+    minutes_to_close = _minutes_to_close(ts_iso, event_end)
+    timing = _timing_bucket(minutes_to_close)
+
     rows.append({
-        "id":             sid,
-        "ts":             ts_iso,
-        "strategy":       strategy,
-        "city":           city_key,
-        "target_date":    target_date.isoformat(),
-        "action":         action,
-        "bucket_label":   label,
-        "bucket_type":    bucket.get("type"),
-        "bucket_temp":    bucket.get("temp"),
-        "yes_price":      yes_price,
-        "our_prob":       our_prob,
-        "edge":           edge,
-        "kelly":          kelly,
-        "ev":             ev,
-        "stake_usd":      stake_usd,
-        "status":         "pending",
-        "outcome_pnl":    None,
-        "observed_max":   None,
-        "settled_at":     None,
+        "id":                sid,
+        "ts":                ts_iso,
+        "strategy":          strategy,
+        "city":              city_key,
+        "target_date":       target_date.isoformat(),
+        "action":            action,
+        "bucket_label":      label,
+        "bucket_type":       bucket.get("type"),
+        "bucket_temp":       bucket.get("temp"),
+        "yes_price":         yes_price,
+        "our_prob":          our_prob,
+        "edge":              edge,
+        "kelly":             kelly,
+        "ev":                ev,
+        "stake_usd":         stake_usd,
+        "minutes_to_close":  minutes_to_close,
+        "timing":            timing,
+        "status":            "pending",
+        "outcome_pnl":       None,
+        "observed_max":      None,
+        "settled_at":        None,
     })
     _save(rows)
-    log.info("נרשם איתות [%s]: %s — %s @ price=%.3f (stake $%.2f)",
-             strategy, sid, action, yes_price, stake_usd)
+    log.info("נרשם איתות [%s|%s]: %s @ price=%.3f (stake $%.2f, %s דק׳ לסגירה)",
+             strategy, timing or "?", sid, yes_price, stake_usd,
+             minutes_to_close if minutes_to_close is not None else "?")
 
 
 def record_signals(city_key: str, target_date: dt.date, signal: dict,
-                    ts_iso: str) -> None:
+                    ts_iso: str, event_end: Optional[str] = None) -> None:
     """
     רושם עד שני איתותי paper-trading מקבילים:
     (1) max_edge — ה-bucket עם היתרון הגדול ביותר (הפעולה הראשית)
     (2) most_likely — ה-bucket הסביר ביותר לפי המודל, רק אם הוא
         שונה מ-(1) וגם בעצמו עובר את סף הקנייה (edge ≥ 3% והסתברות ≥ 30%).
+
+    event_end הוא endDate של האירוע בפולימארקט (ISO); משמש לחישוב
+    "דקות עד סגירה" לכל עסקה לצורך ניתוח איכות-תזמון בהמשך.
     """
     action = (signal or {}).get("action")
     if action not in ("BUY", "STRONG_BUY"):
@@ -130,20 +168,17 @@ def record_signals(city_key: str, target_date: dt.date, signal: dict,
     best_label = (best.get("bucket") or {}).get("label")
     ml_label = (most_likely.get("bucket") or {}).get("label")
 
-    # אסטרטגיה 1: max_edge (הפעולה בפועל)
     if best_label:
         _record_one(city_key, target_date, STRATEGY_MAX_EDGE,
-                     best, action, ts_iso)
+                     best, action, ts_iso, event_end=event_end)
 
-    # אסטרטגיה 2: most_likely — רק אם שונה וגם בעצמו עובר את הסף
     if ml_label and ml_label != best_label:
         ml_edge = float(most_likely.get("edge") or 0)
         ml_prob = float(most_likely.get("our_prob") or 0)
         if ml_edge >= EDGE_THRESHOLD_BUY and ml_prob >= MIN_PROB_FOR_BUY:
-            # הפעולה התואמת לאסטרטגיה 2 — מבוססת על עצמת ה-edge שלה
             ml_action = ("STRONG_BUY" if ml_edge >= 0.08 else "BUY")
             _record_one(city_key, target_date, STRATEGY_MOST_LIKELY,
-                         most_likely, ml_action, ts_iso)
+                         most_likely, ml_action, ts_iso, event_end=event_end)
 
 
 # ─────────────────────────────────────────────
@@ -248,6 +283,12 @@ def compute_performance() -> dict:
         strat_rows = [r for r in rows if r.get("strategy") == s_name]
         by_strategy[s_name] = _aggregate(strat_rows)
 
+    # פיצול לפי תזמון (early / mid / late)
+    by_timing: Dict[str, dict] = {}
+    for t_name in ("early", "mid", "late"):
+        t_rows = [r for r in rows if r.get("timing") == t_name]
+        by_timing[t_name] = _aggregate(t_rows)
+
     # פיצול לפי עיר (על כל האסטרטגיות)
     per_city: Dict[str, dict] = {}
     for r in rows:
@@ -268,6 +309,7 @@ def compute_performance() -> dict:
     result = {
         **all_agg,
         "by_strategy": by_strategy,
+        "by_timing":   by_timing,
         "per_city":    per_city,
         "recent":      rows[-10:],
     }

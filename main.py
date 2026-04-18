@@ -123,8 +123,10 @@ def run_city_date(city: dict, target_date: dt.date, forecasts: dict,
 
     arbitrage = compute_arbitrage(contracts) if contracts else None
 
-    # רישום איתות ללוג paper trading (רק אם זו קנייה)
-    record_signals(city["key"], target_date, signal, ts_iso)
+    # רישום איתות ללוג paper trading (רק אם זו קנייה), כולל זמן-לסגירה
+    event_end = ev.get("endDate") if ev else None
+    record_signals(city["key"], target_date, signal, ts_iso,
+                   event_end=event_end)
 
     return {
         "target_date": target_date.isoformat(),

@@ -187,6 +187,46 @@ def _render_performance(perf: Optional[dict]) -> str:
         </table>
         """
 
+    # פיצול לפי תזמון (early / mid / late)
+    TIMING_LABEL = {"early": "מוקדם (>8 שעות)", "mid": "אמצע (1-8 שעות)", "late": "מאוחר (<שעה)"}
+    timing_rows_html = []
+    by_timing = perf.get("by_timing") or {}
+    for t_name in ("early", "mid", "late"):
+        t = by_timing.get(t_name) or {}
+        if t.get("total", 0) == 0:
+            continue
+        t_pnl = t.get("realized_pnl") or 0
+        cls = "pos" if t_pnl > 0 else ("neg" if t_pnl < 0 else "")
+        wr = t.get("win_rate")
+        wr_txt = f"{wr*100:.0f}%" if wr is not None else "—"
+        roi = t.get("roi_on_settled_stake")
+        roi_txt = f"{roi*100:+.1f}%" if roi is not None else "—"
+        timing_rows_html.append(
+            f'<tr>'
+            f'<td class="t-label">{_esc(TIMING_LABEL[t_name])}</td>'
+            f'<td>{t.get("total",0)}</td>'
+            f'<td>{t.get("won",0)}</td>'
+            f'<td>{t.get("lost",0)}</td>'
+            f'<td>{t.get("pending",0)}</td>'
+            f'<td>{wr_txt}</td>'
+            f'<td class="{cls}">${t_pnl:+.2f}</td>'
+            f'<td>{roi_txt}</td>'
+            f'</tr>'
+        )
+    timing_table = ""
+    if timing_rows_html:
+        timing_table = f"""
+        <h3 class="perf__sub">פיצול לפי תזמון ההימור</h3>
+        <p class="muted small">כל עסקה מתויגת לפי כמה דקות נותרו עד שהאירוע בפולימארקט נסגר. מעניין לראות לאורך זמן אם הימורים מאוחרים (השוק יותר מיושב) מצליחים יותר מהימורים מוקדמים.</p>
+        <table class="perf">
+          <thead><tr>
+            <th>תזמון</th><th>סה"כ</th><th>זכיות</th><th>הפסדים</th>
+            <th>פתוחים</th><th>אחוז זכייה</th><th>P&L</th><th>ROI</th>
+          </tr></thead>
+          <tbody>{"".join(timing_rows_html)}</tbody>
+        </table>
+        """
+
     per_city_rows = []
     for city_key, slot in (perf.get("per_city") or {}).items():
         cls = "pos" if (slot["pnl"] or 0) > 0 else ("neg" if (slot["pnl"] or 0) < 0 else "")
@@ -227,6 +267,7 @@ def _render_performance(perf: Optional[dict]) -> str:
         <div><span class="muted">ROI על סטייק סגור</span><strong>{_pct(roi, 1, signed=True) if roi is not None else "—"}</strong></div>
       </div>
       {strat_table}
+      {timing_table}
       {city_table}
     </section>
     """
