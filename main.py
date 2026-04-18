@@ -20,6 +20,7 @@ import json
 import logging
 import os
 from typing import List, Optional
+from zoneinfo import ZoneInfo
 
 from accuracy import (
     append_forecast_snapshot, compute_model_scores, refresh_observations_metar,
@@ -142,9 +143,14 @@ def run_city_date(city: dict, target_date: dt.date, forecasts: dict,
 
 
 def scan_city(city: dict, ts_iso: str, now) -> dict:
-    """סריקה מלאה של עיר אחת ליום הנוכחי + מחר."""
-    today_local = now.astimezone(TIMEZONE_TZ).date()
-    target_dates = [today_local, today_local + dt.timedelta(days=1)]
+    """
+    סריקה מלאה של עיר אחת ליום הנוכחי + מחר לפי אזור הזמן שלה.
+    קריטי שנשתמש באזור הזמן של העיר עצמה, לא של ברירת המחדל —
+    אחרת ערים שאחרי חצי-לילה יחפשו תחזית לתאריך עבר ויחזרו ריקות.
+    """
+    city_tz = ZoneInfo(city["timezone"])
+    today_city = now.astimezone(city_tz).date()
+    target_dates = [today_city, today_city + dt.timedelta(days=1)]
 
     # 1. תחזיות 5 מודלים
     try:
@@ -190,7 +196,7 @@ def scan_city(city: dict, ts_iso: str, now) -> dict:
     # 4. הרצת ניתוח לכל תאריך
     runs = []
     for d in target_dates:
-        obs_for_date = observation_today if d == today_local else None
+        obs_for_date = observation_today if d == today_city else None
         eps_for_date = ensembles.get(d.isoformat())
         run = run_city_date(city, d, forecasts, ts_iso,
                              observation=obs_for_date,
@@ -233,6 +239,24 @@ def main():
     now_user = now_london.astimezone(USER_TZ)
     ts_iso = now_london.isoformat()
 
+    # שעונים להצגה בכותרת — לכל עיר וגם לזמן המשתמש
+    city_times: List[dict] = []
+    for city in CITIES:
+        tz = ZoneInfo(city["timezone"])
+        t_local = now_london.astimezone(tz)
+        city_times.append({
+            "key":  city["key"],
+            "name": city["display_name_he"],
+            "time": t_local.strftime("%H:%M"),
+            "date": t_local.strftime("%Y-%m-%d"),
+        })
+    city_times.append({
+        "key":  "user",
+        "name": "ישראל",
+        "time": now_user.strftime("%H:%M"),
+        "date": now_user.strftime("%Y-%m-%d"),
+    })
+
     # סריקה של כל הערים
     cities_data = []
     for city in CITIES:
@@ -270,6 +294,7 @@ def main():
         "generated_date_local": now_london.strftime("%Y-%m-%d"),
         "timezone_local":       str(TIMEZONE_TZ),
         "timezone_user":        USER_TZ_NAME,
+        "city_times":           city_times,
         "cities":               cities_data,
         "accuracy":             accuracy,
         "performance":          performance,

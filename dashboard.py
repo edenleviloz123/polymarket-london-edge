@@ -598,9 +598,18 @@ def _render_intro() -> str:
 
 def render_dashboard(payload: dict) -> str:
     gen_utc_ms = int(payload.get("generated_at_utc_ms") or 0)
-    gen_local  = _esc(payload.get("generated_local", "—"))
-    gen_user   = _esc(payload.get("generated_user", "—"))
     gen_date   = _esc(payload.get("generated_date_local", ""))
+
+    # שורת שעונים: כל עיר ב-CITIES + זמן המשתמש, זה לצד זה
+    clock_pills = []
+    for ct in (payload.get("city_times") or []):
+        clock_pills.append(
+            f'<span class="clock-pill">'
+            f'<span class="muted">{_esc(ct["name"])}</span> '
+            f'<strong>{_esc(ct["time"])}</strong>'
+            f'</span>'
+        )
+    clocks_html = " ".join(clock_pills)
 
     city_cards = "".join(_render_city_card(c) for c in payload.get("cities", []))
 
@@ -637,6 +646,10 @@ def render_dashboard(payload: dict) -> str:
   header.top .ts__row {{ display:flex; gap:6px; align-items:baseline; flex-wrap:wrap; }}
   header.top .ts strong {{ color:var(--text); font-weight:600; }}
   header.top .sep {{ color:var(--border); }}
+  header.top .ts__clocks {{ gap:10px; }}
+  .clock-pill {{ display:inline-flex; gap:4px; align-items:baseline;
+    padding:2px 8px; background:#0F1518; border:1px solid var(--border);
+    border-radius:999px; font-size:12px; }}
   header.top .age {{ font-size:12px; padding:2px 8px; border-radius:999px;
     background:var(--border); color:var(--muted); margin-top:2px; }}
   header.top .age.fresh {{ background:color-mix(in srgb, var(--pos) 18%, transparent); color:var(--pos); }}
@@ -783,12 +796,8 @@ def render_dashboard(payload: dict) -> str:
   <header class="top">
     <h1>שכבת מודיעין כמותי — <span>מזג אוויר</span></h1>
     <div class="ts">
-      <div class="ts__row"><span class="muted">תאריך</span><strong>{gen_date}</strong></div>
-      <div class="ts__row">
-        <span class="muted">לונדון</span><strong>{gen_local}</strong>
-        <span class="sep">·</span>
-        <span class="muted">ישראל</span><strong>{gen_user}</strong>
-      </div>
+      <div class="ts__row"><span class="muted">תאריך (לונדון)</span><strong>{gen_date}</strong></div>
+      <div class="ts__row ts__clocks">{clocks_html}</div>
       <div class="ts__row"><span class="age" id="age-indicator" data-ts="{gen_utc_ms}">מחשב גיל…</span></div>
     </div>
   </header>

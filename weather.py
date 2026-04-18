@@ -195,8 +195,15 @@ def fetch_ensemble_spread(city: dict, target_date: dt.date,
 
 
 def fetch_remaining_hourly_forecast(city: dict, now) -> Optional[dict]:
-    """תחזית שעתית לשעות שנותרו היום בעיר הנתונה."""
-    today_iso = now.date().isoformat()
+    """
+    תחזית שעתית לשעות שנותרו היום *בזמן של העיר*. חייב להשתמש
+    בזמן המקומי של העיר (לא של השרת/לונדון) כדי שלא נחשב שעות עבר
+    כשהעיר כבר חצתה חצות.
+    """
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo(city["timezone"])
+    now_city = now.astimezone(tz)
+    today_iso = now_city.date().isoformat()
     try:
         data = _http_get(OPEN_METEO_URL, {
             "latitude":          city["lat"],
@@ -219,10 +226,10 @@ def fetch_remaining_hourly_forecast(city: dict, now) -> Optional[dict]:
         if v is None or not (TEMP_SANITY_MIN <= v <= TEMP_SANITY_MAX):
             continue
         try:
-            t_dt = dt.datetime.fromisoformat(t_iso).replace(tzinfo=now.tzinfo)
+            t_dt = dt.datetime.fromisoformat(t_iso).replace(tzinfo=tz)
         except ValueError:
             continue
-        if t_dt > now:
+        if t_dt > now_city:
             remaining_vals.append(v)
 
     if not remaining_vals:
