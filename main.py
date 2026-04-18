@@ -25,6 +25,7 @@ from accuracy import (
     append_forecast_snapshot, compute_model_scores, refresh_observations_metar,
 )
 from arbitrage import compute_arbitrage
+from exports import export_all
 from config import (
     CITIES, HISTORY_JSON, HISTORY_MAX_ENTRIES,
     MIN_MODELS_REQUIRED, OUTLIER_THRESHOLD_C,
@@ -291,6 +292,12 @@ def main():
     history = history[-HISTORY_MAX_ENTRIES:]
     with open(HISTORY_JSON, "w", encoding="utf-8") as f:
         json.dump(history, f, ensure_ascii=False, indent=2, default=str)
+
+    # יצוא CSV + XLSX לצריכה חיצונית ב-Excel
+    try:
+        export_all(performance or {}, accuracy or {}, ts_iso)
+    except Exception as e:
+        log.warning("יצוא XLSX/CSV נכשל: %s", e)
 
     html = render_dashboard(payload)
     with open(OUTPUT_HTML, "w", encoding="utf-8") as f:

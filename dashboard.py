@@ -685,6 +685,13 @@ def render_dashboard(payload: dict) -> str:
     border-radius:50%; font-size:10px; cursor:help; }}
   .info:hover {{ background:var(--mint); color:var(--bg); }}
 
+  .exports {{ background:var(--card); border:1px solid var(--border);
+    border-radius:12px; padding:16px; margin-top:20px; }}
+  .exports h2 {{ margin:0 0 6px 0; font-size:15px; color:var(--mint); }}
+  .exports__links {{ display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }}
+  .exports__links a {{ padding:6px 12px; border:1px solid var(--mint);
+    border-radius:6px; font-size:13px; background:color-mix(in srgb, var(--mint) 8%, transparent); }}
+  .exports__links a:hover {{ background:color-mix(in srgb, var(--mint) 20%, transparent); text-decoration:none; }}
   footer {{ margin-top:20px; color:var(--muted); font-size:11px; text-align:center; line-height:1.6; }}
 </style>
 </head>
@@ -709,6 +716,17 @@ def render_dashboard(payload: dict) -> str:
   {city_cards}
 
   {_render_accuracy(payload.get("accuracy"))}
+
+  <section class="exports">
+    <h2>הורדת נתונים</h2>
+    <p class="muted small">הקבצים נוצרים מחדש בכל הרצה. Excel יכול להיצמד ל-CSV דרך Data ⟵ From Web לקבלת רענון אוטומטי.</p>
+    <div class="exports__links">
+      <a href="performance.xlsx" download>קובץ Excel מלא (5 גיליונות)</a>
+      <a href="signals.csv" download>signals.csv</a>
+      <a href="forecasts.csv" download>forecasts.csv</a>
+      <a href="daily_performance.csv" download>daily_performance.csv</a>
+    </div>
+  </section>
 
   <footer>
     <div>תחזיות: Open-Meteo (5 מודלים + 2 אנסמבלים). מחירים: Polymarket Gamma. תצפיות: aviationweather.gov METAR.</div>
