@@ -1,15 +1,21 @@
 """
-רינדור HTML סטטי (RTL, Dark, mint #B5EBBF) לתוצאות הסריקה.
-כולל:
-  • הסברים inline ו-tooltips לכל מדד
-  • סימון ויזואלי של מודלים חריגים (אדום)
-  • פאנל דיוק מודלים לאורך זמן
-  • טבלת Top-N חוזים לפי הסתברות (נקייה יותר מכל 11 ה-buckets)
+רינדור HTML סטטי רב-עירי.
+
+מבנה:
+  ┌ header: כותרת + שעונים + מחוון גיל נתונים
+  ├ סקירה מהירה: טבלה של כל הערים × (היום, מחר) עם האיתות
+  ├ ביצועי paper-trading מצטברים
+  ├ פרטי כל עיר בנפרד (כרטיסיה מתקפלת)
+  ├ איכות מודלים לאורך זמן
+  └ footer
+
+העיקרון: המסך הראשי חייב להיות קריא ומידי. כל פרט נוסף נגיש בלחיצה.
 """
 import html
 from typing import Optional
 
-from config import CITY_NAME_HE, TOP_N_BUCKETS, WEATHER_MODELS
+from config import CITIES, TOP_N_BUCKETS, WEATHER_MODELS
+
 
 ACTION_HE = {
     "STRONG_BUY": "קנייה חזקה",
@@ -26,28 +32,19 @@ ACTION_COLOR = {
     "NO_DATA":    "#3A464E",
 }
 
-# הסברים קצרים שיופיעו בטולטיפ ובמדריך הראשי
 HELP = {
-    "arbitrage":     "הזדמנות רווח מובטח שלא תלויה בתחזית. קורית כשסכום מחירי ה-YES של כל ה-buckets רחוק מ-100%. דורשת נזילות מספיקה לביצוע מיידי של כל 11 העסקאות.",
-    "bid_ask":       "bestBid הוא המחיר שבו תוכל למכור עכשיו, bestAsk הוא המחיר שבו תוכל לקנות. הפער ביניהם נאכל על ידי מי שלוקח את הצד הנגדי.",
-    "consensus":     "ממוצע חשבוני של תחזיות המודלים הזמינים באותו יום, לאחר הסרת חריגים.",
-    "sigma":         "סטיית תקן בין המודלים. ככל שהיא גבוהה, יש יותר חוסר הסכמה ופחות ביטחון.",
-    "ensemble":      "50 חברי ECMWF EPS (Ensemble Prediction System) — כל אחד הוא ריצה עצמאית של המודל עם תנאי התחלה מעוותים מעט. סטיית התקן ביניהם היא מדד סטטיסטי אמיתי של אי-הוודאות, ומחליפה ניחוש שרירותי של σ.",
-    "available":     "כמה מתוך חמשת המודלים הגיבו ולא סומנו כחריגים.",
-    "prob_ours":     "ההסתברות שחישבנו שהטמפ' המקסימלית תיפול בדיוק ב-bucket הזה, לפי התפלגות נורמלית.",
-    "market_price":  "המחיר הנוכחי לקניית YES באותו חוזה ב-Polymarket. מייצג את ההסתברות שהשוק מתמחר.",
-    "edge":          "הפער בין ההסתברות שלנו למחיר השוק. חיובי גדול = הזדמנות קנייה.",
-    "kelly":         "אחוז מומלץ מהבנקרול לפוזיציה, לפי נוסחת קלי (Kelly). חוסם ב-[0,1].",
-    "ev":            "תשואה צפויה על כל 1$ שמושקע בחוזה, לפי ההסתברות שלנו.",
-    "volume":        "נפח המסחר ב-USD בחוזה מאז פתיחתו. מעיד על נזילות ועומק שוק.",
-    "outlier":       "המודל חרג יותר מ-2°C מהחציון של האחרים — הוסר מחישוב הקונצנזוס של היום.",
-    "mae":           "שגיאה מוחלטת ממוצעת של המודל מול תצפיות בפועל. נמוך יותר = מדויק יותר.",
-    "bias":          "האם המודל נוטה להיות חם מדי (חיובי) או קר מדי (שלילי) בממוצע.",
-    "hit_1c":        "אחוז הימים שהמודל חזה בטווח של ±1°C מהמדידה בפועל.",
-    "rank_avg":      "דירוג ממוצע. 1 = הכי מדויק באותו יום. נמוך יותר = עקבי יותר.",
-    "action":        "המלצת הפעולה על בסיס היתרון הגבוה ביותר בטבלה. הסף לקנייה הוא 3%.",
-    "observed":      "הטמפ' המקסימלית שכבר נמדדה היום עד השעה הנוכחית. המודל מתייחס אליה כאל חסם תחתון — המקסימום היומי לא יכול להיות נמוך ממנה.",
-    "post_peak":     "סימון שהשיא היומי כבר עבר (התצפית גבוהה מהתחזית לשעות הנותרות). במצב הזה אי-הוודאות קטנה משמעותית.",
+    "consensus":     "ממוצע תחזיות המודלים לאחר הסרת חריגים.",
+    "sigma":         "כמה המודלים מסכימים. σ גבוה = אי-ודאות גבוהה.",
+    "ensemble":      "סטיית התקן בין חברי אנסמבל — מדד סטטיסטי של אי-הוודאות של התחזית.",
+    "prob_ours":     "ההסתברות שלנו ל-bucket, לפי התפלגות נורמלית.",
+    "market_price":  "מחיר YES בשוק = ההסתברות שהשוק מתמחר.",
+    "edge":          "פער בין המודל לשוק. חיובי = הזדמנות קנייה.",
+    "kelly":         "אחוז מהבנקרול שמומלץ לפוזיציה.",
+    "ev":            "רווח צפוי על כל 1$ מושקע.",
+    "volume":        "נפח המסחר בדולרים בחוזה.",
+    "metar":         "תחנת METAR — מקור המדידה שממנו Polymarket מיישב.",
+    "arb":           "הזדמנות רווח מובטח ללא תלות בתחזית.",
+    "paper":         "ניטור ביצועים מדומים: כל איתות קנייה נרשם, ואחרי התצפית מסתכמים רווח/הפסד.",
 }
 
 
@@ -70,158 +67,241 @@ def _pct(v: Optional[float], digits=1, signed=True) -> str:
 
 
 def _info(key: str) -> str:
-    """מחזיר טולטיפ קצר עם סימן מידע קטן ליד תווית."""
     return f'<span class="info" title="{_esc(HELP[key])}">ⓘ</span>'
 
 
-def _render_arbitrage(arb: Optional[dict]) -> str:
-    """פאנל לזיהוי ארביטראז' — רווח מובטח מתימחור לא-עקבי של השוק."""
-    if not arb:
+# ─────────────────────────────────────────────
+# סקירה כוללת
+# ─────────────────────────────────────────────
+
+def _cell_for_run(run: dict) -> str:
+    sig = run.get("signal") or {}
+    action = sig.get("action", "NO_DATA")
+    color = ACTION_COLOR[action]
+    best = (sig.get("best") or {}).get("bucket") or {}
+    label = best.get("label", "—")
+    action_he = ACTION_HE[action]
+    return (f'<td class="cell" style="--sig:{color}">'
+            f'<div class="cell__action">{_esc(action_he)}</div>'
+            f'<div class="cell__label">{_esc(label) if action not in ("HOLD","NO_DATA") else ""}</div>'
+            f'</td>')
+
+
+def _render_overview(payload: dict) -> str:
+    cities = payload.get("cities", []) or []
+    if not cities:
         return ""
+    # ניחוש: היום הוא runs[0], מחר runs[1]
+    dates = []
+    if cities and cities[0].get("runs"):
+        dates = [r["target_date"] for r in cities[0]["runs"]]
 
-    n = arb.get("n_buckets", 0)
-    has_opp = arb.get("has_opportunity", False)
-
-    if not has_opp:
-        reason = arb.get("reason_if_none") or ""
-        sum_bid = arb.get("sum_yes_bid")
-        sum_ask = arb.get("sum_yes_ask")
-        summary = ""
-        if sum_bid is not None and sum_ask is not None:
-            summary = (f" (סכום YES-bid = <strong>{sum_bid*100:.1f}%</strong>, "
-                       f"YES-ask = <strong>{sum_ask*100:.1f}%</strong>)")
-        return (f'<div class="arb arb--none">'
-                f'<strong>ארביטראז׳ {_info("arbitrage")}</strong>: אין כרגע. '
-                f'{_esc(reason)}{summary}'
-                f'</div>')
-
-    strategy = arb.get("best_strategy")
-    profit = arb.get("best_profit_usd", 0) * 100   # סנטים לבונדל
-    cost   = arb.get("best_cost_usd", 0) * 100
-    roi    = arb.get("roi", 0) * 100
-
-    if strategy == "sell_yes":
-        title  = "מכירת YES על כל 11 החוזים (או בשפה אחרת: קניית NO על כולם)"
-        detail = (f'סכום מחירי ה-YES-bid: <strong>{arb["sum_yes_bid"]*100:.1f}%</strong> '
-                  f'(מעל 100%, סימן לעקביות שגויה של השוק).')
-    else:
-        title  = "קנייה של YES על כל 11 החוזים"
-        detail = (f'סכום מחירי ה-YES-ask: <strong>{arb["sum_yes_ask"]*100:.1f}%</strong> '
-                  f'(מתחת ל-100%, השוק מתמחר בחסר).')
-
+    head_cells = "".join(f"<th>{_esc(d)}</th>" for d in dates)
+    rows = []
+    for c in cities:
+        runs = c.get("runs") or []
+        cells = "".join(_cell_for_run(r) for r in runs)
+        rows.append(
+            f'<tr>'
+            f'<th class="city">'
+            f'<a href="#city-{_esc(c["key"])}">{_esc(c["display_name_he"])}</a>'
+            f'</th>{cells}</tr>'
+        )
     return f"""
-    <div class="arb arb--yes">
-      <div class="arb__head">
-        <strong>🎯 ארביטראז׳ זמין {_info("arbitrage")}</strong>
-        <span class="arb__profit">רווח מובטח: {profit:.1f} סנט לבונדל · ROI כ-{roi:.1f}%</span>
-      </div>
-      <div class="arb__body">
-        <div class="arb__recipe">אסטרטגיה: {_esc(title)}</div>
-        <div>{detail}</div>
-        <div class="arb__caveats">
-          חישוב מבוסס bestBid ו-bestAsk מה-API של Polymarket. עלול להיות רדוד בפועל.
-          צריך לבצע את כל {n} העסקאות במקביל כדי לנעול את הרווח.
-          Polymarket גובה 2% על המרת USDC שאוכלת חלק מהמרווח.
-        </div>
-      </div>
-    </div>
+    <section class="overview">
+      <h2>סקירה — כל הערים</h2>
+      <table>
+        <thead><tr><th></th>{head_cells}</tr></thead>
+        <tbody>{"".join(rows)}</tbody>
+      </table>
+      <p class="muted small">לחיצה על שם עיר פותחת את הפרטים שלה למטה.</p>
+    </section>
     """
 
 
-def _render_ensemble_stat(ens: Optional[dict]) -> str:
-    if not ens or ens.get("combined_std") is None:
+# ─────────────────────────────────────────────
+# Paper-trading performance
+# ─────────────────────────────────────────────
+
+def _render_performance(perf: Optional[dict]) -> str:
+    if not perf:
         return ""
-    return (f'<div>'
-            f'<span class="muted">σ אנסמבלים משולב {_info("ensemble")}</span>'
-            f'<strong>{ens["combined_std"]:.2f}°C</strong>'
+    total = perf.get("total", 0)
+    if total == 0:
+        return f"""
+        <section class="card card--perf">
+          <h2>ביצועי paper-trading {_info("paper")}</h2>
+          <p class="muted">
+            עדיין לא נרשם איתות קנייה. המערכת רושמת כל קנייה חזקה/רגילה
+            אוטומטית, וברגע שהיום של היעד נסגר, התצפית האמיתית קובעת
+            אם ה-bucket זכה — והרווח/הפסד המדומה מחושב אוטומטית.
+          </p>
+        </section>
+        """
+
+    win_rate = perf.get("win_rate")
+    realized = perf.get("realized_pnl") or 0
+    expected = perf.get("expected_pnl") or 0
+    pending_stake = perf.get("pending_stake") or 0
+    roi = perf.get("roi_on_settled_stake")
+
+    pnl_cls = "pos" if realized > 0 else ("neg" if realized < 0 else "")
+
+    per_city_rows = []
+    for city_key, slot in (perf.get("per_city") or {}).items():
+        cls = "pos" if (slot["pnl"] or 0) > 0 else ("neg" if (slot["pnl"] or 0) < 0 else "")
+        per_city_rows.append(
+            f'<tr>'
+            f'<td>{_esc(city_key)}</td>'
+            f'<td>{slot["total"]}</td>'
+            f'<td>{slot["won"]}</td>'
+            f'<td>{slot["lost"]}</td>'
+            f'<td>{slot["pending"]}</td>'
+            f'<td class="{cls}">${slot["pnl"]:+.2f}</td>'
+            f'</tr>'
+        )
+    city_table = ""
+    if per_city_rows:
+        city_table = f"""
+        <table class="perf">
+          <thead><tr>
+            <th>עיר</th><th>סה"כ</th><th>זכיות</th><th>הפסדים</th>
+            <th>פתוחים</th><th>P&L מצטבר</th>
+          </tr></thead>
+          <tbody>{"".join(per_city_rows)}</tbody>
+        </table>
+        """
+
+    return f"""
+    <section class="card card--perf">
+      <h2>ביצועי paper-trading {_info("paper")}</h2>
+      <div class="perf__grid">
+        <div><span class="muted">איתותים סה"כ</span><strong>{total}</strong></div>
+        <div><span class="muted">סגורים</span><strong>{perf.get("settled",0)}</strong></div>
+        <div><span class="muted">פתוחים</span><strong>{perf.get("pending",0)}</strong></div>
+        <div><span class="muted">אחוז זכייה</span><strong>{_pct(win_rate, 0, signed=False)}</strong></div>
+        <div><span class="muted">P&L ממומש</span><strong class="{pnl_cls}">${realized:+.2f}</strong></div>
+        <div><span class="muted">P&L צפוי (EV)</span><strong>${expected:+.2f}</strong></div>
+        <div><span class="muted">סטייק פתוח</span><strong>${pending_stake:.2f}</strong></div>
+        <div><span class="muted">ROI על סטייק סגור</span><strong>{_pct(roi, 1, signed=True) if roi is not None else "—"}</strong></div>
+      </div>
+      {city_table}
+    </section>
+    """
+
+
+# ─────────────────────────────────────────────
+# כרטיסיה של עיר בודדת
+# ─────────────────────────────────────────────
+
+def _render_model_chips_compact(cons: dict) -> str:
+    """תצוגה קומפקטית — רק אם יש חריג או σ גבוה נבלט."""
+    outliers = cons.get("outliers") or {}
+    if not outliers:
+        return ""  # נסתר כברירת מחדל כשאין חריג
+    names = ", ".join(outliers.keys())
+    return (f'<div class="banner banner--warn">'
+            f'⚠ מודלים חריגים שהוסרו: {_esc(names)}.'
             f'</div>')
 
 
-def _render_ensemble_box(ens: Optional[dict]) -> str:
-    """מציג כל אנסמבל בנפרד + מדד ההסכמה ביניהם."""
+def _render_metar_panel(run: dict, city: dict) -> str:
+    obs = run.get("observation") or {}
+    if obs.get("observed_max_int") is None:
+        return ""
+    om   = obs["observed_max_int"]
+    pt   = obs.get("peak_time_local") or "—"
+    rpt  = obs.get("report_count", 0)
+    lt   = obs.get("latest_time_local") or "—"
+    ltemp = obs.get("latest_temp")
+    age   = obs.get("latest_age_min")
+    rfc   = obs.get("remaining_forecast_max")
+    raw   = obs.get("raw_sample")
+    post_peak = rfc is None or om >= rfc
+    state_txt = "השיא היומי כבר עבר — התוצאה כמעט נעולה." if post_peak else "השיא היומי עדיין יכול לקרות."
+    rem_html = (f'תחזית לשעות שנותרו: <strong>{rfc:.1f}°C</strong>. '
+                if rfc is not None else '')
+
+    age_cls = ""
+    if isinstance(age, int):
+        if age <= 35:    age_cls = " age-fresh"
+        elif age <= 70:  age_cls = " age-mid"
+        else:            age_cls = " age-stale"
+    age_txt = f" (לפני {age} דק׳)" if isinstance(age, int) else ""
+    latest_html = (f'דיווח אחרון ב-<strong class="metar-age{age_cls}">{_esc(lt)}{age_txt}</strong>: '
+                   f'<strong>{ltemp}°C</strong>. ' if ltemp is not None else '')
+
+    try:
+        ymd = run["target_date"].split("-")
+        wu_url = (f"https://www.wunderground.com/history/daily/"
+                  f"{city['wu_url_part']}/date/"
+                  f"{int(ymd[0])}-{int(ymd[1])}-{int(ymd[2])}")
+    except Exception:
+        wu_url = f"https://www.wunderground.com/history/daily/{city['wu_url_part']}"
+
+    raw_html = ""
+    if raw:
+        raw_html = f'<details class="metar-details"><summary>METAR גולמי</summary><code>{_esc(raw)}</code></details>'
+
+    return (
+        f'<div class="banner banner--obs">'
+        f'🌡️ <strong>METAR {_esc(city["metar_station"] if "metar_station" in city else "")} {_info("metar")}</strong>: '
+        f'מקסימום עד כה <strong>{om}°C</strong> '
+        f'(שיא ב-<strong>{_esc(pt)}</strong>, {rpt} דיווחים). '
+        f'{latest_html}'
+        f'{rem_html}'
+        f'{state_txt} '
+        f'<a href="{wu_url}" target="_blank" rel="noopener" class="wu-link-inline">[אימות ב-Wunderground]</a>'
+        f'{raw_html}'
+        f'</div>'
+    )
+
+
+def _render_ensemble_compact(cons: dict) -> str:
+    ens = cons.get("ensemble") or {}
     if not ens or not ens.get("systems"):
         return ""
-    rows = []
-    for name, s in ens["systems"].items():
-        rows.append(
-            f'<div class="ens-row">'
-            f'<strong>{_esc(name)}</strong> · '
-            f'{s["n_members"]} חברים · '
-            f'ממוצע <strong>{s["mean"]:.2f}°C</strong> · '
-            f'טווח {s["min"]:.1f}°C עד {s["max"]:.1f}°C · '
-            f'σ <strong>{s["std"]:.2f}°C</strong>'
-            f'</div>'
-        )
-    # מדד הסכמה בין המערכות
+    combined = ens.get("combined_std")
     agreement = ens.get("agreement_c", 0)
-    if len(ens["systems"]) >= 2:
-        if agreement < 0.3:
-            agr_text = f"הסכמה טובה בין המערכות ({agreement:.2f}°C הפרש ממוצעים)"
-            agr_cls = "good"
-        elif agreement < 0.8:
-            agr_text = f"הסכמה בינונית ({agreement:.2f}°C הפרש ממוצעים)"
-            agr_cls = "mid"
-        else:
-            agr_text = f"⚠ חוסר הסכמה ({agreement:.2f}°C הפרש ממוצעים) — אי-ודאות אמיתית"
-            agr_cls = "bad"
-        rows.append(
-            f'<div class="ens-agreement ens-agreement--{agr_cls}">{agr_text}</div>'
-        )
-    return f'<div class="ens-box">{"".join(rows)}</div>'
+    if agreement < 0.3:
+        agr_cls = "good"; agr_word = "הסכמה"
+    elif agreement < 0.8:
+        agr_cls = "mid"; agr_word = "הסכמה בינונית"
+    else:
+        agr_cls = "bad"; agr_word = "⚠ חוסר הסכמה"
+    details = []
+    for name, s in ens["systems"].items():
+        details.append(f'<span class="ens-pill">{_esc(name)}: μ={s["mean"]:.2f} σ={s["std"]:.2f}</span>')
+    return (
+        f'<div class="ens-compact ens-compact--{agr_cls}">'
+        f'<strong>ensemble:</strong> σ משולב {combined:.2f}°C · '
+        f'{"".join(details)} · '
+        f'<span class="ens-agr">{agr_word} ({agreement:.2f}°C)</span>'
+        f'</div>'
+    )
 
 
-def _render_model_chips(cons: dict) -> str:
-    all_models = cons.get("all_models") or {}
-    outliers = cons.get("outliers") or {}
-    chips = []
-    for name in WEATHER_MODELS.keys():
-        v = all_models.get(name)
-        if v is None:
-            chips.append(
-                f'<div class="chip chip--off" title="המודל לא החזיר ערך לתאריך הזה">'
-                f'<span class="chip__name">{_esc(name)}</span>'
-                f'<span class="chip__val">—</span></div>'
-            )
-        elif name in outliers:
-            dev = outliers[name]
-            chips.append(
-                f'<div class="chip chip--outlier" '
-                f'title="חריג: סטיה של {dev:+.1f}°C מהחציון. הוסר מהחישוב.">'
-                f'<span class="chip__name">{_esc(name)}</span>'
-                f'<span class="chip__val">{v:.1f}°C ⚠</span></div>'
-            )
-        else:
-            chips.append(
-                f'<div class="chip">'
-                f'<span class="chip__name">{_esc(name)}</span>'
-                f'<span class="chip__val">{v:.1f}°C</span></div>'
-            )
-    return "".join(chips)
-
-
-def _render_edges_table(edges: list,
-                        best_label: Optional[str],
-                        likely_label: Optional[str],
-                        best_edge_label: Optional[str]) -> str:
+def _render_edges_table(run: dict) -> str:
+    edges = run.get("edges") or []
     if not edges:
-        return '<p class="muted">אין חוזים זמינים לתאריך הזה.</p>'
+        return '<p class="muted">אין חוזים זמינים.</p>'
+    sig = run.get("signal") or {}
+    best       = (sig.get("best") or {})
+    most_likely = (sig.get("most_likely") or {})
+    best_label        = (best.get("bucket") or {}).get("label")
+    likely_label      = (most_likely.get("bucket") or {}).get("label")
 
-    # מציגים את TOP_N_BUCKETS הגבוהים בהסתברות שלנו,
-    # ותמיד מבטיחים שה-bucket הכי סביר, הפעולה, והיתרון המקסימלי כלולים.
     sorted_by_prob = sorted(edges, key=lambda e: e["our_prob"], reverse=True)
     visible = list(sorted_by_prob[:TOP_N_BUCKETS])
     visible_labels = {e["bucket"]["label"] for e in visible}
-    for must_show in (best_label, likely_label, best_edge_label):
+    for must_show in (best_label, likely_label):
         if must_show and must_show not in visible_labels:
-            row = next((e for e in edges
-                        if e["bucket"]["label"] == must_show), None)
+            row = next((e for e in edges if e["bucket"]["label"] == must_show), None)
             if row is not None:
                 visible.append(row)
                 visible_labels.add(must_show)
-    # ממיינים לצורך תצוגה: טמפ' עולה
     type_order = {"below": 0, "single": 1, "above": 2}
-    visible.sort(key=lambda e: (type_order[e["bucket"]["type"]],
-                                e["bucket"]["temp"]))
+    visible.sort(key=lambda e: (type_order[e["bucket"]["type"]], e["bucket"]["temp"]))
 
     rows = []
     for e in visible:
@@ -229,378 +309,247 @@ def _render_edges_table(edges: list,
         is_best   = best_label   and lbl == best_label
         is_likely = likely_label and lbl == likely_label
         edge_cls = "pos" if e["edge"] > 0 else ("neg" if e["edge"] < 0 else "")
-        row_classes = ["row"]
-        if is_best:   row_classes.append("row--best")
-        if is_likely: row_classes.append("row--likely")
-        markers = []
-        if is_best:   markers.append('<span class="mark mark--best">פעולה</span>')
-        if is_likely: markers.append('<span class="mark mark--likely">הכי סביר</span>')
-        marker_html = "".join(markers)
+        row_cls = "row"
+        if is_best:   row_cls += " row--best"
+        if is_likely: row_cls += " row--likely"
+        markers = ""
+        if is_best:   markers += '<span class="mark mark--best">פעולה</span>'
+        if is_likely: markers += '<span class="mark mark--likely">סביר</span>'
         rows.append(
-            f'<tr class="{" ".join(row_classes)}">'
-            f'<td class="t-label">{_esc(lbl)} {marker_html}</td>'
+            f'<tr class="{row_cls}">'
+            f'<td class="t-label">{_esc(lbl)} {markers}</td>'
             f'<td>{e["our_prob"]*100:.1f}%</td>'
             f'<td>{e["yes_price"]*100:.1f}%</td>'
             f'<td class="t-edge {edge_cls}">{_pct(e["edge"])}</td>'
-            f'<td>{e["kelly"]*100:.1f}%</td>'
+            f'<td>{e["kelly"]*100:.0f}%</td>'
             f'<td class="{edge_cls}">{_pct(e["ev"])}</td>'
-            f'<td class="muted">${e["volume"]:,.0f}</td>'
             f'</tr>'
         )
-    total_n = len(edges)
-    shown_n = len(visible)
-    note = ""
-    if shown_n < total_n:
-        note = (f'<p class="muted note">מוצגים {shown_n} מתוך {total_n} חוזים. '
-                f'כלולים: הטופ לפי הסתברות, ה-bucket הכי סביר לפי המודל, '
-                f'החוזה שמניב את ההמלצה, וה-bucket עם היתרון המקסימלי '
-                f'(אם זה שונה מהשאר). </p>')
     return f"""
     <table class="edges">
       <thead><tr>
-        <th>טמפרטורה (°C)</th>
-        <th>הסתברות חזויה {_info('prob_ours')}</th>
-        <th>מחיר YES {_info('market_price')}</th>
-        <th>יתרון (Edge) {_info('edge')}</th>
+        <th>טמפ' (°C)</th>
+        <th>הסתברות {_info('prob_ours')}</th>
+        <th>שוק {_info('market_price')}</th>
+        <th>יתרון {_info('edge')}</th>
         <th>Kelly {_info('kelly')}</th>
-        <th>EV ל-$1 {_info('ev')}</th>
-        <th>נפח {_info('volume')}</th>
+        <th>EV {_info('ev')}</th>
       </tr></thead>
-      <tbody>{''.join(rows)}</tbody>
+      <tbody>{"".join(rows)}</tbody>
     </table>
-    {note}
     """
 
 
-def _render_run(run: dict) -> str:
-    cons   = run.get("consensus") or {}
-    signal = run.get("signal") or {}
-    event  = run.get("event")
-    action = signal.get("action", "NO_DATA")
-    color  = ACTION_COLOR[action]
-    best        = signal.get("best") or {}
-    most_likely = signal.get("most_likely") or {}
-    best_edge_b = signal.get("best_edge") or {}
-    best_label        = (best.get("bucket") or {}).get("label")
-    likely_label      = (most_likely.get("bucket") or {}).get("label")
-    best_edge_label   = (best_edge_b.get("bucket") or {}).get("label")
+def _render_arb(arb: Optional[dict]) -> str:
+    if not arb:
+        return ""
+    if not arb.get("has_opportunity"):
+        return ""
+    profit = arb.get("best_profit_usd", 0) * 100
+    roi = arb.get("roi", 0) * 100
+    strategy = arb.get("best_strategy")
+    title = ("מכירת YES על כל החוזים" if strategy == "sell_yes"
+             else "קניית YES על כל החוזים")
+    return (f'<div class="banner banner--arb">'
+            f'🎯 <strong>ארביטראז׳ {_info("arb")}</strong>: '
+            f'{_esc(title)}. רווח {profit:.1f} סנט לבונדל, ROI כ-{roi:.1f}%.'
+            f'</div>')
 
-    # קוביות משנה קטנות ליד הסיגנל — "הכי סביר" ו"יתרון מקסימלי"
-    signal_chips = []
-    if likely_label:
-        p_ml = most_likely["our_prob"] * 100
-        signal_chips.append(
-            f'<div class="sigchip sigchip--likely" '
-            f'title="הטמפרטורה שהמודל חושב שהכי סבירה, ללא קשר למחיר השוק.">'
-            f'<span class="sigchip__label">הכי סביר</span> '
-            f'<span class="sigchip__val">{_esc(likely_label)} · {p_ml:.1f}%</span>'
-            f'</div>'
-        )
-    if best_edge_label and best_edge_label != best_label:
-        be = best_edge_b
-        signal_chips.append(
-            f'<div class="sigchip sigchip--edge" '
-            f'title="הbucket עם היתרון הגדול ביותר. אם הוא אינו המומלץ — סביר שההסתברות שלו נמוכה מסף 30%.">'
-            f'<span class="sigchip__label">יתרון מקסימלי</span> '
-            f'<span class="sigchip__val">{_esc(best_edge_label)} · {be["edge"]*100:+.1f}%</span>'
-            f'</div>'
-        )
-    chips_html = (f'<div class="sigchips">{"".join(signal_chips)}</div>'
-                  if signal_chips else "")
 
+def _has_active_signal(city_data: dict) -> bool:
+    for r in city_data.get("runs") or []:
+        act = (r.get("signal") or {}).get("action")
+        if act in ("STRONG_BUY", "BUY", "AVOID"):
+            return True
+    return False
+
+
+def _render_city_run(city: dict, run: dict) -> str:
+    sig = run.get("signal") or {}
+    action = sig.get("action", "NO_DATA")
+    color = ACTION_COLOR[action]
+    cons = run.get("consensus") or {}
+    mu, std, n = cons.get("mean"), cons.get("std"), cons.get("n", 0)
+    n_total = len(cons.get("all_models") or WEATHER_MODELS)
+    event = run.get("event")
+    event_link = ""
     if event:
-        title = _esc(event.get("title"))
-        slug  = _esc(event.get("slug"))
-        url   = f"https://polymarket.com/event/{slug}" if slug else "#"
-        event_html = (
-            f'<div class="event"><span class="muted">אירוע:</span> '
-            f'<a href="{url}" target="_blank" rel="noopener">{title}</a></div>'
-        )
-    else:
-        event_html = '<div class="event muted">לא נמצא אירוע Polymarket תואם לתאריך.</div>'
-
-    mu    = cons.get("mean")
-    std   = cons.get("std")
-    n     = cons.get("n", 0)
-    outliers = cons.get("outliers") or {}
-    total_models = len(cons.get("all_models") or WEATHER_MODELS)
-
-    outlier_banner = ""
-    if outliers:
-        names = ", ".join(outliers.keys())
-        outlier_banner = (
-            f'<div class="banner banner--warn">'
-            f'⚠ מודלים חריגים שהוסרו מהחישוב: {_esc(names)}. '
-            f'הקונצנזוס מבוסס רק על המודלים המוסכמים. '
-            f'</div>'
-        )
-
-    # אזהרת אי-התאמה לשוק: כשההסתברות שלנו וה-YES בשוק רחוקים
-    # מאוד זה מזה עבור אותו bucket דומיננטי. שני הכיוונים אפשריים:
-    # (א) השוק יודע משהו שאנחנו לא (תצפית שטרם נקלטה, מזג אוויר חריג)
-    # (ב) המודל שלנו משקלל לא-נכון פרמטרים
-    divergence_banner = ""
-    if most_likely and most_likely.get("our_prob", 0) > 0.5:
-        ours = most_likely["our_prob"]
-        mkt  = most_likely["yes_price"]
-        if abs(ours - mkt) > 0.30:
-            direction = "מעריך את האירוע הזה כהרבה יותר סביר מהשוק" if ours > mkt else "מעריך את האירוע הזה כהרבה פחות סביר מהשוק"
-            divergence_banner = (
-                f'<div class="banner banner--diverge">'
-                f'⚠ אי-התאמה משמעותית לשוק: המודל {direction} '
-                f'(שלנו {ours*100:.0f}% מול {mkt*100:.0f}% בשוק). '
-                f'ייתכן שהשוק רואה נתוני METAR/מזג אוויר שעדיין לא נקלטו אצלנו, '
-                f'או שהמודל שוקל פחות טוב. יש להתייחס להמלצה בזהירות.'
-                f'</div>'
-            )
-
-    # פאנל תצפית METAR בזמן-אמת (רק ליום הנוכחי שיש לו דיווחי METAR).
-    # מוסיפים את ה-METAR הגולמי האחרון (מה שסוחרים בפולי-מארקט ציטטו לאורך כל הדיון),
-    # וגם קישור לדף ההיסטוריה של Wunderground — הדף שממנו החוזה מיושב.
-    obs = run.get("observation") or {}
-    obs_panel = ""
-    if obs.get("observed_max_int") is not None:
-        om   = obs["observed_max_int"]
-        pt   = obs.get("peak_time_local") or "—"
-        rpt  = obs.get("report_count", 0)
-        lt   = obs.get("latest_time_local") or "—"
-        ltemp = obs.get("latest_temp")
-        hr   = obs.get("hours_remaining", 0)
-        rfc  = obs.get("remaining_forecast_max")
-        raw  = obs.get("raw_sample")
-        post_peak = rfc is None or om >= rfc
-        state_txt = "השיא היומי כבר עבר — התוצאה כמעט נעולה." if post_peak else "השיא היומי עדיין יכול לקרות בשעות שנותרו."
-        rem_html = (f'תחזית לשעות שנותרו: <strong>{rfc:.1f}°C</strong>. '
-                    if rfc is not None else '')
-        age = obs.get("latest_age_min")
-        age_txt = f" (לפני {age} דק׳)" if isinstance(age, int) else ""
-        age_cls = ""
-        if isinstance(age, int):
-            if age <= 35:    age_cls = " age-fresh"
-            elif age <= 70:  age_cls = " age-mid"
-            else:            age_cls = " age-stale"
-        latest_html = (f'דיווח אחרון בשעה <strong class="metar-age{age_cls}">{_esc(lt)}{age_txt}</strong>: '
-                       f'<strong>{ltemp}°C</strong>. ' if ltemp is not None else '')
-        raw_html = (f'<div class="metar-raw">METAR גולמי: <code>{_esc(raw)}</code></div>'
-                    if raw else '')
-        # קישור לטבלה ההיסטורית של Wunderground — הטבלה שממנה Polymarket מיישב
-        wu_date = run["target_date"].replace("-", "-")  # כבר בפורמט נכון
-        try:
-            ymd = run["target_date"].split("-")
-            wu_url = f"https://www.wunderground.com/history/daily/gb/london/EGLC/date/{int(ymd[0])}-{int(ymd[1])}-{int(ymd[2])}"
-        except Exception:
-            wu_url = "https://www.wunderground.com/history/daily/gb/london/EGLC"
-        wu_html = (f'<div class="wu-link">'
-                   f'לאימות עצמאי: <a href="{wu_url}" target="_blank" rel="noopener">'
-                   f'טבלת ההיסטוריה של Wunderground ל-EGLC</a> (מקור היישוב של Polymarket). '
-                   f'שים לב — התצוגה החיה של WU יכולה להראות ערך גבוה יותר מהטבלה '
-                   f'ההיסטורית. ההחלטה נעשית לפי הטבלה ההיסטורית ולא לפי התצוגה.'
-                   f'</div>')
-        obs_panel = (
-            f'<div class="banner banner--obs">'
-            f'🌡️ <strong>תצפית METAR חיה (תחנת EGLC)</strong>: '
-            f'מקסימום שנמדד עד כה <strong>{om}°C</strong> '
-            f'(שיא בשעה <strong>{_esc(pt)}</strong>, {rpt} דיווחים). '
-            f'{latest_html}'
-            f'{rem_html}'
-            f'{state_txt} '
-            f'{_info("observed")}'
-            f'{raw_html}'
-            f'{wu_html}'
-            f'</div>'
-        )
+        slug = _esc(event.get("slug"))
+        event_link = (f'<a class="event-link" href="https://polymarket.com/event/{slug}" '
+                      f'target="_blank" rel="noopener">[פתח בפולימארקט]</a>')
 
     return f"""
-    <section class="card">
-      <header class="card__head">
-        <h2>תאריך יעד — {_esc(run["target_date"])}</h2>
-        {event_html}
+    <div class="run">
+      <header class="run__head">
+        <h3>{_esc(run["target_date"])}</h3>
+        {event_link}
       </header>
-
       <div class="signal" style="--sig:{color}">
-        <div class="signal__row">
-          <div class="signal__label">המלצה {_info('action')}</div>
-          <div class="signal__action">{ACTION_HE[action]}</div>
-        </div>
-        <div class="signal__rationale">{_esc(signal.get("rationale", ""))}</div>
-        {chips_html}
+        <span class="signal__action">{ACTION_HE[action]}</span>
+        <span class="signal__why">{_esc(sig.get("rationale",""))}</span>
       </div>
-
-      {outlier_banner}
-      {obs_panel}
-      {divergence_banner}
-
-      <div class="consensus">
-        <div class="consensus__stats">
-          <div>
-            <span class="muted">קונצנזוס (μ) {_info('consensus')}</span>
-            <strong>{_fmt(mu, "°C", 2)}</strong>
-          </div>
-          <div>
-            <span class="muted">פיזור בין-מודלים (σ) {_info('sigma')}</span>
-            <strong>{_fmt(std, "°C", 2)}</strong>
-          </div>
-          <div>
-            <span class="muted">מודלים זמינים {_info('available')}</span>
-            <strong>{n} / {total_models}</strong>
-          </div>
-          {_render_ensemble_stat(cons.get("ensemble"))}
-        </div>
-        <div class="chips">{_render_model_chips(cons)}</div>
-        {_render_ensemble_box(cons.get("ensemble"))}
+      {_render_model_chips_compact(cons)}
+      {_render_metar_panel(run, city)}
+      {_render_arb(run.get("arbitrage"))}
+      <div class="cons-compact">
+        <span>μ: <strong>{_fmt(mu,"°C",2)}</strong></span>
+        <span>σ מודלים: <strong>{_fmt(std,"°C",2)}</strong></span>
+        <span>מודלים: <strong>{n}/{n_total}</strong></span>
       </div>
+      {_render_ensemble_compact(cons)}
+      {_render_edges_table(run)}
+    </div>
+    """
 
-      {_render_edges_table(run.get("edges") or [],
-                           best_label, likely_label, best_edge_label)}
 
-      {_render_arbitrage(run.get("arbitrage"))}
+def _render_city_card(city_data: dict) -> str:
+    is_open = _has_active_signal(city_data)
+    open_attr = " open" if is_open else ""
+    runs_html = "".join(_render_city_run(city_data, r)
+                         for r in (city_data.get("runs") or []))
+    return f"""
+    <section class="card city-card" id="city-{_esc(city_data['key'])}">
+      <details class="city-details"{open_attr}>
+        <summary>
+          <span class="city-name">{_esc(city_data["display_name_he"])}</span>
+          <span class="city-name-en muted">{_esc(city_data["display_name_en"])}</span>
+        </summary>
+        <div class="city-body">{runs_html}</div>
+      </details>
     </section>
     """
 
 
+# ─────────────────────────────────────────────
+# Accuracy
+# ─────────────────────────────────────────────
+
 def _render_accuracy(acc: Optional[dict]) -> str:
-    if not acc or not acc.get("days_measured"):
+    if not acc or not (acc.get("global") or {}).get("days_measured"):
         return """
         <section class="card card--acc">
           <h2>איכות מודלים לאורך זמן</h2>
           <p class="muted">
-            עדיין לא נצברה היסטוריה מספקת. כל יום שחולף נשמר, התצפית בפועל
-            נשלפת אוטומטית אחרי סוף היום, והמדדים כאן יתחילו להיבנות.
-            צריך לפחות מספר ימים כדי שיהיו מדדים אמינים.
+            עדיין לא נצברה היסטוריה מספקת. כל יום שחולף נשמר, תצפית METAR
+            של סוף היום מצליבה אוטומטית, ומדדי הדיוק כאן מתחילים להיבנות.
           </p>
         </section>
         """
+    glob = acc["global"]
     rows = []
-    # סידור: הכי מדויק (MAE הכי נמוך) קודם
-    items = list(acc["models"].items())
+    items = list(glob["models"].items())
     items.sort(key=lambda kv: (kv[1]["mae"] if kv[1]["mae"] is not None else 999))
     for name, s in items:
         if s["n"] == 0:
-            rows.append(
-                f'<tr><td>{_esc(name)}</td>'
-                f'<td class="muted">—</td><td class="muted">—</td>'
-                f'<td class="muted">—</td><td class="muted">—</td>'
-                f'<td class="muted">0</td></tr>'
-            )
+            rows.append(f'<tr><td>{_esc(name)}</td>'
+                        f'<td class="muted" colspan="5">אין נתונים</td></tr>')
             continue
         mae_cls = "pos" if s["mae"] is not None and s["mae"] < 1.0 else ""
         bias_cls = "pos" if s["bias"] is not None and abs(s["bias"]) < 0.3 else ""
         rows.append(
             f'<tr>'
             f'<td class="t-label">{_esc(name)}</td>'
-            f'<td class="{mae_cls}">{_fmt(s["mae"], "°C", 2)}</td>'
-            f'<td class="{bias_cls}">{_fmt(s["bias"], "°C", 2) if s["bias"] is not None else "—"}</td>'
-            f'<td>{_pct(s["hit_1c"], 0, signed=False) if s["hit_1c"] is not None else "—"}</td>'
-            f'<td>{_fmt(s["rank_avg"], "", 2)}</td>'
+            f'<td class="{mae_cls}">{_fmt(s["mae"],"°C",2)}</td>'
+            f'<td class="{bias_cls}">{_fmt(s["bias"],"°C",2) if s["bias"] is not None else "—"}</td>'
+            f'<td>{_pct(s["hit_1c"],0,signed=False) if s["hit_1c"] is not None else "—"}</td>'
+            f'<td>{_fmt(s["rank_avg"],"",2)}</td>'
             f'<td class="muted">{s["n"]}</td>'
             f'</tr>'
         )
-    c = acc.get("consensus") or {}
+    c = glob.get("consensus") or {}
     cons_row = ""
     if c.get("n"):
         cons_row = (
             f'<tr class="row--best">'
             f'<td class="t-label">קונצנזוס</td>'
-            f'<td>{_fmt(c["mae"], "°C", 2)}</td>'
-            f'<td>{_fmt(c["bias"], "°C", 2)}</td>'
-            f'<td>{_pct(c["hit_1c"], 0, signed=False) if c["hit_1c"] is not None else "—"}</td>'
+            f'<td>{_fmt(c["mae"],"°C",2)}</td>'
+            f'<td>{_fmt(c["bias"],"°C",2)}</td>'
+            f'<td>{_pct(c["hit_1c"],0,signed=False) if c["hit_1c"] is not None else "—"}</td>'
             f'<td class="muted">—</td>'
             f'<td class="muted">{c["n"]}</td>'
             f'</tr>'
         )
-
     return f"""
     <section class="card card--acc">
       <h2>איכות מודלים לאורך זמן</h2>
-      <p class="muted">
-        לכל יום שחלף אוספים את הטמפרטורה שנמדדה בפועל, משווים לתחזיות שכל מודל
-        נתן, ומחשבים מדדי דיוק. אחרי שבוע-שבועיים אפשר יהיה לראות אילו מודלים
-        מדויקים יותר בתנאים של EGLC בפועל.
+      <p class="muted small">
+        {glob["days_measured"]} ימים שלמים נמדדו (כל הערים). עמודת MAE = שגיאה מוחלטת ממוצעת; נמוך יותר = טוב יותר.
+        עמודת הטיה קרובה לאפס = מודל ניטרלי.
       </p>
       <table class="acc">
         <thead><tr>
-          <th>מודל</th>
-          <th>שגיאה מוחלטת ממוצעת (MAE) {_info('mae')}</th>
-          <th>הטיה ממוצעת {_info('bias')}</th>
-          <th>פגיעה בטווח 1°C {_info('hit_1c')}</th>
-          <th>דירוג ממוצע {_info('rank_avg')}</th>
-          <th>מס' ימים</th>
+          <th>מודל</th><th>MAE</th><th>הטיה</th>
+          <th>פגיעה ±1°C</th><th>דירוג ממוצע</th><th>ימים</th>
         </tr></thead>
-        <tbody>
-          {''.join(rows)}
-          {cons_row}
-        </tbody>
+        <tbody>{"".join(rows)}{cons_row}</tbody>
       </table>
-      <p class="muted small">
-        MAE נמוך = מדויק יותר. הטיה קרובה לאפס = מודל ניטרלי. דירוג 1 = היה המדויק
-        ביותר באותו יום.
-      </p>
     </section>
     """
 
 
+# ─────────────────────────────────────────────
+# Intro (מקופל כברירת מחדל)
+# ─────────────────────────────────────────────
+
 def _render_intro() -> str:
     return """
     <details class="intro">
-      <summary>איך לקרוא את הלוח הזה?</summary>
+      <summary>איך לקרוא את הלוח הזה? (מקופל)</summary>
       <div class="intro__body">
-        <p>
-          המערכת משווה בין תחזית משוקללת של חמישה מודלים מטאורולוגיים לבין המחירים
-          שמסחרים סביב "הטמפרטורה המקסימלית בלונדון" בשוק Polymarket. כשהפער
-          גדול — המודל מזהה הזדמנות.
-        </p>
         <ul>
-          <li><strong>קונצנזוס (μ)</strong> — ממוצע תחזיות המודלים לאחר הסרת חריגים.</li>
-          <li><strong>פיזור (σ)</strong> — כמה המודלים לא מסכימים. ערך גבוה = פחות ביטחון באיתות.</li>
-          <li><strong>יתרון (Edge)</strong> — הפער בין ההסתברות שלנו למחיר בשוק. 3% ומעלה = קנייה.</li>
-          <li><strong>Kelly</strong> — אחוז מהבנקרול שמומלץ להשקיע בחוזה בודד.</li>
-          <li><strong>מודל חריג (⚠)</strong> — מודל שחרג יותר מ-2°C מהחציון הוסר מהחישוב.</li>
-          <li><strong>METAR חי</strong> — המקור הגולמי של דיווחי טמפרטורה מתחנת EGLC, מדווח במעלות שלמות כל 30 דקות. זה המקור ש-Wunderground מכניס לטבלה ההיסטורית שלה, ושממנו Polymarket מיישב.</li>
-          <li><strong>איכות מודלים</strong> — טבלת דיוק שנבנית לאורך זמן מול תצפיות בפועל.</li>
+          <li><strong>סקירה כוללת</strong> — טבלה אחת עם כל הערים והאיתות היומי שלהן.</li>
+          <li><strong>paper-trading</strong> — רווח/הפסד מדומה על כל איתות קנייה. מצטבר לאורך זמן.</li>
+          <li><strong>פרטי עיר</strong> — לחיצה על שם העיר פותחת את הפרטים המלאים.</li>
+          <li><strong>METAR</strong> — מקור התצפית הרשמי. מגיע חי מ-aviationweather.gov.</li>
+          <li><strong>ensemble</strong> — 80 חברי מודל עצמאיים (ECMWF + GEFS). σ ביניהם = אי-ודאות אמיתית.</li>
+          <li><strong>⚠ מלכודת</strong> — התצוגה החיה של Wunderground יכולה להראות ערך שונה מהטבלה ההיסטורית שממנה Polymarket מיישב. תמיד להצליב מול הטבלה ההיסטורית.</li>
         </ul>
-        <p class="small">
-          <strong style="color:var(--warn)">⚠ מלכודת נפוצה</strong>:
-          התצוגה החיה של Wunderground יכולה להראות ערך כמו 17°C כשכל ה-METAR-ים
-          של היום דיווחו 16°C. המלצה: לאמת תמיד מול טבלת ההיסטוריה של WU (הקישור מופיע
-          בפאנל ה-METAR ליד התצפית) — לא מול הערך החי.
-        </p>
-        <p class="muted small">
-          גלילה אל מעל כל תווית עם סימן ⓘ כדי לקבל הסבר קצר על המדד.
-        </p>
       </div>
     </details>
     """
 
 
+# ─────────────────────────────────────────────
+# רינדור מרכזי
+# ─────────────────────────────────────────────
+
 def render_dashboard(payload: dict) -> str:
-    runs_html = "".join(_render_run(r) for r in payload.get("runs", []))
-    acc_html  = _render_accuracy(payload.get("accuracy"))
     gen_utc_ms = int(payload.get("generated_at_utc_ms") or 0)
     gen_local  = _esc(payload.get("generated_local", "—"))
     gen_user   = _esc(payload.get("generated_user", "—"))
     gen_date   = _esc(payload.get("generated_date_local", ""))
+
+    city_cards = "".join(_render_city_card(c) for c in payload.get("cities", []))
+
     return f"""<!doctype html>
 <html lang="he" dir="rtl">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="refresh" content="300">
-<title>שכבת מודיעין כמותי — {_esc(CITY_NAME_HE)}</title>
+<title>שכבת מודיעין כמותי — מזג אוויר</title>
 <style>
   :root {{
     --bg:#0B0F12; --card:#151B20; --border:#1F2932;
     --text:#E8EDF0; --muted:#7A858C;
     --mint:#B5EBBF; --pos:#5FC87A; --neg:#E45858; --warn:#E4A858;
+    --accent2:#9BD3F2;
   }}
   * {{ box-sizing:border-box; }}
   html,body {{ margin:0; background:var(--bg); color:var(--text);
-    font-family:'Segoe UI', 'Heebo', 'Rubik', system-ui, sans-serif; }}
-  body {{ padding:24px; max-width:1200px; margin:0 auto; }}
-  header.top {{ display:flex; justify-content:space-between; align-items:flex-start;
-    border-bottom:1px solid var(--border); padding-bottom:16px; margin-bottom:20px; gap:16px; flex-wrap:wrap; }}
+    font-family:'Segoe UI','Heebo','Rubik',system-ui,sans-serif; }}
+  body {{ padding:20px; max-width:1200px; margin:0 auto; }}
+  a {{ color:var(--mint); text-decoration:none; }}
+  a:hover {{ text-decoration:underline; }}
+  .muted {{ color:var(--muted); }}
+  .small {{ font-size:12px; }}
+
+  header.top {{ display:flex; justify-content:space-between; flex-wrap:wrap;
+    align-items:flex-start; border-bottom:1px solid var(--border);
+    padding-bottom:14px; margin-bottom:16px; gap:14px; }}
   header.top h1 {{ margin:0; font-size:22px; font-weight:600; }}
   header.top h1 span {{ color:var(--mint); }}
-  header.top .ts {{ color:var(--muted); font-size:13px; text-align:left;
+  header.top .ts {{ font-size:13px; text-align:left;
     display:flex; flex-direction:column; gap:3px; }}
   header.top .ts__row {{ display:flex; gap:6px; align-items:baseline; flex-wrap:wrap; }}
   header.top .ts strong {{ color:var(--text); font-weight:600; }}
@@ -610,189 +559,176 @@ def render_dashboard(payload: dict) -> str:
   header.top .age.fresh {{ background:color-mix(in srgb, var(--pos) 18%, transparent); color:var(--pos); }}
   header.top .age.mid   {{ background:color-mix(in srgb, var(--warn) 18%, transparent); color:var(--warn); }}
   header.top .age.stale {{ background:color-mix(in srgb, var(--neg) 18%, transparent); color:var(--neg); }}
-  .muted {{ color:var(--muted); }}
-  .small {{ font-size:12px; }}
 
   details.intro {{ background:var(--card); border:1px solid var(--border);
-    border-radius:12px; padding:14px 18px; margin-bottom:20px; }}
-  details.intro summary {{ cursor:pointer; color:var(--mint); font-weight:600; }}
-  details.intro .intro__body {{ margin-top:10px; line-height:1.65; }}
-  details.intro ul {{ padding-inline-start:20px; }}
-  details.intro li {{ margin:4px 0; }}
+    border-radius:10px; padding:10px 14px; margin-bottom:14px; font-size:13px; }}
+  details.intro summary {{ cursor:pointer; color:var(--muted); }}
+  details.intro ul {{ padding-inline-start:18px; margin:8px 0; line-height:1.6; }}
+
+  .overview {{ background:var(--card); border:1px solid var(--border);
+    border-radius:12px; padding:16px; margin-bottom:16px; }}
+  .overview h2 {{ margin:0 0 10px 0; font-size:16px; }}
+  .overview table {{ width:100%; border-collapse:collapse; font-size:13px; }}
+  .overview th, .overview td {{ padding:8px 10px; text-align:right;
+    border-bottom:1px solid var(--border); }}
+  .overview th {{ color:var(--muted); font-weight:500; font-size:12px; }}
+  .overview th.city {{ text-align:right; font-size:13px; color:var(--text); font-weight:600; }}
+  .overview th.city a {{ color:var(--mint); }}
+  .cell {{ border-right:3px solid var(--sig); padding-inline-end:8px; }}
+  .cell__action {{ color:var(--sig); font-weight:700; font-size:14px; }}
+  .cell__label {{ font-size:12px; color:var(--muted); margin-top:2px; }}
 
   .card {{ background:var(--card); border:1px solid var(--border);
-    border-radius:12px; padding:20px; margin-bottom:20px; }}
-  .card__head h2 {{ margin:0 0 4px 0; font-size:18px; }}
-  .card--acc h2 {{ color:var(--mint); }}
+    border-radius:12px; padding:18px; margin-bottom:14px; }}
+  .card h2 {{ margin:0 0 10px 0; font-size:16px; }}
 
-  .event {{ font-size:13px; margin-bottom:14px; }}
-  .event a {{ color:var(--mint); text-decoration:none; border-bottom:1px dotted var(--mint); }}
+  .card--perf h2 {{ color:var(--mint); }}
+  .perf__grid {{ display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr));
+    gap:10px; margin-bottom:12px; }}
+  .perf__grid div {{ display:flex; flex-direction:column; padding:8px;
+    background:#0F1518; border-radius:8px; }}
+  .perf__grid strong {{ font-size:16px; color:var(--text); }}
+  .perf__grid .pos {{ color:var(--pos); }}
+  .perf__grid .neg {{ color:var(--neg); }}
+  table.perf {{ width:100%; border-collapse:collapse; font-size:12px; }}
+  table.perf th, table.perf td {{ text-align:right; padding:6px 8px;
+    border-bottom:1px solid var(--border); }}
+  table.perf th {{ color:var(--muted); font-weight:500; }}
+  table.perf .pos {{ color:var(--pos); }}
+  table.perf .neg {{ color:var(--neg); }}
+
+  .city-card {{ padding:0; overflow:hidden; }}
+  .city-details summary {{ cursor:pointer; list-style:none; padding:14px 18px;
+    display:flex; gap:10px; align-items:baseline;
+    border-bottom:1px solid transparent; }}
+  .city-details[open] summary {{ border-bottom-color:var(--border); }}
+  .city-details summary::-webkit-details-marker {{ display:none; }}
+  .city-name {{ font-size:17px; font-weight:600; color:var(--mint); }}
+  .city-name-en {{ font-size:12px; }}
+  .city-body {{ padding:14px 18px; display:flex; flex-direction:column; gap:16px; }}
+  .run {{ padding-bottom:14px; border-bottom:1px dashed var(--border); }}
+  .run:last-child {{ border-bottom:none; padding-bottom:0; }}
+  .run__head {{ display:flex; justify-content:space-between; align-items:baseline;
+    gap:10px; flex-wrap:wrap; margin-bottom:8px; }}
+  .run__head h3 {{ margin:0; font-size:15px; font-weight:600; }}
+  .event-link {{ font-size:12px; color:var(--mint); }}
 
   .signal {{ border-right:4px solid var(--sig);
     background:color-mix(in srgb, var(--sig) 10%, transparent);
-    padding:14px 18px; border-radius:8px; margin:14px 0 14px; }}
-  .signal__row {{ display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }}
-  .signal__label {{ color:var(--muted); font-size:13px; }}
-  .signal__action {{ color:var(--sig); font-size:22px; font-weight:700; letter-spacing:0.5px; }}
-  .signal__rationale {{ margin-top:6px; color:var(--text); line-height:1.55; }}
+    padding:8px 14px; border-radius:6px; margin-bottom:10px;
+    display:flex; flex-wrap:wrap; gap:12px; align-items:baseline; }}
+  .signal__action {{ color:var(--sig); font-size:16px; font-weight:700; }}
+  .signal__why {{ font-size:12px; color:var(--text); line-height:1.4; flex:1 1 300px; }}
 
-  .banner {{ padding:10px 14px; border-radius:8px; margin:6px 0 14px;
-    font-size:13px; border:1px solid; }}
+  .banner {{ padding:8px 12px; border-radius:6px; margin:6px 0;
+    font-size:12px; border:1px solid; line-height:1.55; }}
   .banner--warn {{ border-color:var(--warn);
     background:color-mix(in srgb, var(--warn) 10%, transparent);
     color:color-mix(in srgb, var(--warn) 80%, white); }}
-  .banner--obs {{ border-color:#6AB4E0;
-    background:color-mix(in srgb, #6AB4E0 10%, transparent);
-    color:color-mix(in srgb, #9BD3F2 80%, white); line-height:1.7; }}
-  .banner--obs strong {{ color:#9BD3F2; }}
+  .banner--obs {{ border-color:var(--accent2);
+    background:color-mix(in srgb, var(--accent2) 10%, transparent);
+    color:color-mix(in srgb, var(--accent2) 80%, white); }}
+  .banner--obs strong {{ color:var(--accent2); }}
+  .banner--arb {{ border-color:#F2C94C;
+    background:color-mix(in srgb, #F2C94C 10%, transparent);
+    color:color-mix(in srgb, #F2C94C 85%, white); }}
+  .banner--arb strong {{ color:#F2C94C; }}
   .metar-age.age-fresh {{ color:var(--pos); }}
   .metar-age.age-mid   {{ color:var(--warn); }}
   .metar-age.age-stale {{ color:var(--neg); }}
-  .metar-raw {{ margin-top:8px; font-size:12px; opacity:0.85; }}
-  .metar-raw code {{ background:#0B1114; color:var(--mint);
-    padding:2px 6px; border-radius:4px; font-family:'Consolas','Courier New',monospace;
-    direction:ltr; unicode-bidi:embed; }}
-  .wu-link {{ margin-top:8px; font-size:12px; padding-top:8px;
-    border-top:1px dashed color-mix(in srgb, #6AB4E0 30%, transparent); }}
-  .wu-link a {{ color:#9BD3F2; text-decoration:none; border-bottom:1px dotted #9BD3F2; }}
-  .banner--diverge {{ border-color:var(--neg);
-    background:color-mix(in srgb, var(--neg) 8%, transparent);
-    color:color-mix(in srgb, var(--neg) 75%, white); line-height:1.6; }}
+  .wu-link-inline {{ color:var(--accent2); font-size:11px; margin-inline-start:4px; }}
+  .metar-details {{ margin-top:6px; font-size:11px; }}
+  .metar-details summary {{ cursor:pointer; color:var(--muted); }}
+  .metar-details code {{ direction:ltr; unicode-bidi:embed;
+    background:#0B1114; color:var(--mint);
+    padding:2px 6px; border-radius:3px; display:inline-block;
+    font-family:'Consolas',monospace; margin-top:4px; }}
 
-  .consensus {{ display:flex; gap:18px; flex-wrap:wrap;
-    align-items:center; margin-bottom:16px; }}
-  .consensus__stats {{ display:flex; gap:22px; flex-wrap:wrap; }}
-  .consensus__stats div {{ display:flex; flex-direction:column; gap:2px; }}
-  .consensus__stats strong {{ font-size:18px; color:var(--text); }}
+  .cons-compact {{ display:flex; gap:14px; font-size:13px; color:var(--muted);
+    flex-wrap:wrap; margin-bottom:6px; }}
+  .cons-compact strong {{ color:var(--text); font-weight:600; }}
 
-  .ens-box {{ width:100%; margin-top:10px; padding:10px 14px;
+  .ens-compact {{ display:flex; gap:8px; align-items:baseline; flex-wrap:wrap;
+    font-size:12px; padding:6px 10px; border-radius:6px;
     background:color-mix(in srgb, var(--mint) 6%, transparent);
-    border:1px solid color-mix(in srgb, var(--mint) 30%, transparent);
-    border-radius:8px; font-size:13px; line-height:1.7; }}
-  .ens-box strong {{ color:var(--mint); }}
-  .ens-row {{ padding:3px 0; }}
-  .ens-row + .ens-row {{ border-top:1px dotted color-mix(in srgb, var(--mint) 15%, transparent); }}
-  .ens-agreement {{ margin-top:6px; padding-top:6px;
-    border-top:1px dashed color-mix(in srgb, var(--mint) 25%, transparent);
-    font-size:12px; }}
-  .ens-agreement--good {{ color:var(--pos); }}
-  .ens-agreement--mid  {{ color:var(--warn); }}
-  .ens-agreement--bad  {{ color:var(--neg); font-weight:600; }}
+    border:1px solid color-mix(in srgb, var(--mint) 25%, transparent);
+    margin-bottom:8px; }}
+  .ens-compact strong {{ color:var(--mint); }}
+  .ens-pill {{ padding:2px 8px; background:#0F1518; border-radius:999px; }}
+  .ens-agr {{ margin-inline-start:auto; font-weight:600; }}
+  .ens-compact--good .ens-agr {{ color:var(--pos); }}
+  .ens-compact--mid  .ens-agr {{ color:var(--warn); }}
+  .ens-compact--bad  .ens-agr {{ color:var(--neg); }}
 
-  .arb {{ margin-top:16px; padding:12px 14px; border-radius:8px;
-    border:1px solid var(--border); font-size:13px; line-height:1.6; }}
-  .arb--none {{ background:#0F1518; color:var(--muted); }}
-  .arb--none strong {{ color:var(--text); }}
-  .arb--yes {{ background:color-mix(in srgb, #F2C94C 10%, transparent);
-    border-color:#F2C94C; }}
-  .arb--yes strong {{ color:#F2C94C; }}
-  .arb__head {{ display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px;
-    align-items:baseline; margin-bottom:6px; }}
-  .arb__profit {{ color:#F2C94C; font-weight:700; }}
-  .arb__recipe {{ font-weight:600; color:var(--text); margin-bottom:4px; }}
-  .arb__caveats {{ font-size:12px; color:var(--muted); margin-top:8px;
-    padding-top:8px; border-top:1px dashed color-mix(in srgb, #F2C94C 30%, transparent); }}
-
-  .chips {{ display:flex; gap:6px; flex-wrap:wrap; }}
-  .chip {{ display:inline-flex; gap:6px; padding:4px 10px; border:1px solid var(--border);
-    border-radius:999px; font-size:12px; background:#0F1518; }}
-  .chip__name {{ color:var(--muted); }}
-  .chip__val  {{ color:var(--mint); font-weight:600; }}
-  .chip--off {{ opacity:0.45; }}
-  .chip--off .chip__val {{ color:var(--muted); }}
-  .chip--outlier {{ border-color:var(--neg); background:color-mix(in srgb, var(--neg) 8%, transparent); }}
-  .chip--outlier .chip__val {{ color:var(--neg); }}
-
-  table.edges, table.acc {{ width:100%; border-collapse:collapse;
-    font-size:13px; margin-top:8px; }}
+  table.edges, table.acc {{ width:100%; border-collapse:collapse; font-size:12px; }}
   table.edges th, table.edges td,
-  table.acc th, table.acc td {{ text-align:right; padding:8px 10px;
+  table.acc th, table.acc td {{ padding:6px 8px; text-align:right;
     border-bottom:1px solid var(--border); }}
-  table.edges th, table.acc th {{ color:var(--muted); font-weight:500; font-size:12px; }}
+  table.edges th, table.acc th {{ color:var(--muted); font-weight:500; font-size:11px; }}
   table.edges .t-label, table.acc .t-label {{ font-weight:600; color:var(--text); }}
   table.edges .t-edge {{ font-weight:600; }}
-  table.edges .pos, table.acc .pos {{ color:var(--pos); }}
-  table.edges .neg, table.acc .neg {{ color:var(--neg); }}
-  table.edges .row--best {{ background:color-mix(in srgb, var(--mint) 8%, transparent); }}
-  table.edges .row--best .t-label {{ color:var(--mint); }}
-  table.edges .row--likely {{ background:color-mix(in srgb, #6AB4E0 10%, transparent); }}
-  table.edges .row--likely .t-label {{ color:#9BD3F2; }}
-  table.edges .row--best.row--likely {{ background:color-mix(in srgb, var(--mint) 6%, color-mix(in srgb, #6AB4E0 10%, transparent)); }}
-  table.edges .mark {{ display:inline-block; font-size:10px;
-    padding:1px 7px; border-radius:999px; margin-inline-start:6px;
-    vertical-align:middle; font-weight:600; letter-spacing:0.3px; }}
-  table.edges .mark--best {{ background:var(--mint); color:var(--bg); }}
-  table.edges .mark--likely {{ background:#9BD3F2; color:var(--bg); }}
-  table.acc .row--best {{ background:color-mix(in srgb, var(--mint) 6%, transparent); }}
-  table.acc .row--best .t-label {{ color:var(--mint); font-weight:700; }}
-  p.note {{ margin-top:8px; font-size:12px; }}
-
-  .sigchips {{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }}
-  .sigchip {{ display:inline-flex; gap:6px; align-items:baseline;
-    padding:4px 10px; border-radius:8px; font-size:12px;
-    border:1px solid var(--border); background:#0F1518; }}
-  .sigchip__label {{ color:var(--muted); }}
-  .sigchip__val {{ font-weight:600; }}
-  .sigchip--likely .sigchip__val {{ color:#9BD3F2; }}
-  .sigchip--edge .sigchip__val {{ color:var(--mint); }}
+  .pos {{ color:var(--pos); }}
+  .neg {{ color:var(--neg); }}
+  .row--best {{ background:color-mix(in srgb, var(--mint) 8%, transparent); }}
+  .row--best .t-label {{ color:var(--mint); }}
+  .row--likely {{ background:color-mix(in srgb, var(--accent2) 10%, transparent); }}
+  .row--likely .t-label {{ color:var(--accent2); }}
+  .row--best.row--likely {{ background:color-mix(in srgb, var(--mint) 6%, color-mix(in srgb, var(--accent2) 10%, transparent)); }}
+  .mark {{ display:inline-block; font-size:10px; padding:1px 6px;
+    border-radius:999px; margin-inline-start:5px; font-weight:600; }}
+  .mark--best {{ background:var(--mint); color:var(--bg); }}
+  .mark--likely {{ background:var(--accent2); color:var(--bg); }}
 
   .info {{ display:inline-block; margin-right:4px;
     width:14px; height:14px; line-height:14px; text-align:center;
     background:var(--border); color:var(--muted);
-    border-radius:50%; font-size:10px; cursor:help; user-select:none; }}
+    border-radius:50%; font-size:10px; cursor:help; }}
   .info:hover {{ background:var(--mint); color:var(--bg); }}
 
-  footer {{ margin-top:28px; color:var(--muted); font-size:12px; text-align:center; line-height:1.6; }}
+  footer {{ margin-top:20px; color:var(--muted); font-size:11px; text-align:center; line-height:1.6; }}
 </style>
 </head>
 <body>
   <header class="top">
-    <h1>שכבת מודיעין כמותי — <span>{_esc(CITY_NAME_HE)}</span></h1>
+    <h1>שכבת מודיעין כמותי — <span>מזג אוויר</span></h1>
     <div class="ts">
-      <div class="ts__row">
-        <span class="muted">רוענן לאחרונה בתאריך</span>
-        <strong>{gen_date}</strong>
-      </div>
+      <div class="ts__row"><span class="muted">תאריך</span><strong>{gen_date}</strong></div>
       <div class="ts__row">
         <span class="muted">לונדון</span><strong>{gen_local}</strong>
         <span class="sep">·</span>
         <span class="muted">ישראל</span><strong>{gen_user}</strong>
       </div>
-      <div class="ts__row">
-        <span class="age" id="age-indicator" data-ts="{gen_utc_ms}">מחשב גיל הנתונים…</span>
-      </div>
+      <div class="ts__row"><span class="age" id="age-indicator" data-ts="{gen_utc_ms}">מחשב גיל…</span></div>
     </div>
   </header>
 
   {_render_intro()}
-  {runs_html}
-  {acc_html}
+  {_render_overview(payload)}
+  {_render_performance(payload.get("performance"))}
+
+  {city_cards}
+
+  {_render_accuracy(payload.get("accuracy"))}
 
   <footer>
-    <div>תחזיות: Open-Meteo (חמישה מודלים). מחירים: Polymarket Gamma API. תצפיות: Open-Meteo Archive/ERA5.</div>
-    <div>סף קנייה: יתרון של 3% ומעלה. סף חזק: 8% ומעלה.</div>
-    <div>הדף מתרענן אוטומטית כל 5 דקות. ניתן לרענן ידנית בכל רגע.</div>
+    <div>תחזיות: Open-Meteo (5 מודלים + 2 אנסמבלים). מחירים: Polymarket Gamma. תצפיות: aviationweather.gov METAR.</div>
+    <div>סף קנייה: יתרון 3% ומעלה + הסתברות 30% ומעלה.</div>
   </footer>
 
   <script>
-    // מונה חי: מראה כמה זמן עבר מאז העדכון האחרון.
-    // צבע הכרטיסיה משתנה לפי הגיל: ירוק עד 6 דק', צהוב עד 12 דק', אדום מעבר.
     (function () {{
       var el = document.getElementById('age-indicator');
       if (!el) return;
       var ts = parseInt(el.getAttribute('data-ts') || '0', 10);
       if (!ts) {{ el.textContent = ''; return; }}
-
       function fmt(ms) {{
         var s = Math.max(0, Math.floor(ms / 1000));
         if (s < 60) return 'עודכן לפני ' + s + ' שניות';
         var m = Math.floor(s / 60);
         if (m < 60) return 'עודכן לפני ' + m + ' דק׳';
         var h = Math.floor(m / 60);
-        var mm = m % 60;
-        return 'עודכן לפני ' + h + ' שעות ו-' + mm + ' דק׳';
+        return 'עודכן לפני ' + h + ' שעות ו-' + (m % 60) + ' דק׳';
       }}
-
       function tick() {{
         var age = Date.now() - ts;
         el.textContent = fmt(age);
@@ -801,21 +737,14 @@ def render_dashboard(payload: dict) -> str:
         else if (age < 12 * 60000) el.classList.add('mid');
         else el.classList.add('stale');
       }}
-
-      tick();
-      setInterval(tick, 15000);
+      tick(); setInterval(tick, 15000);
     }})();
-
-    // רענון חוזר עם cache-busting כדי לעקוף את ה-CDN של GitHub Pages.
-    // meta refresh בלבד לא תמיד חד-פעמי ביחס לקאש.
     setTimeout(function () {{
       try {{
         var u = new URL(location.href);
         u.searchParams.set('_', Date.now().toString());
         location.replace(u.toString());
-      }} catch (e) {{
-        location.reload();
-      }}
+      }} catch (e) {{ location.reload(); }}
     }}, 300000);
   </script>
 </body>

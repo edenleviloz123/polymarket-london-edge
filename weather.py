@@ -1,6 +1,9 @@
 """
-שליפת תחזיות טמפ' מקסימלית יומית מחמישה מודלי מזג-אוויר דרך Open-Meteo,
-עם retry, ולידציה, וחישוב קונצנזוס + פיזור בין-מודלי.
+שליפת תחזיות מחמישה מודלי מזג-אוויר דרך Open-Meteo, וחישוב
+קונצנזוס + פיזור בין-מודלי + אנסמבלים עצמאיים (ECMWF EPS + NOAA GEFS).
+
+כל הפונקציות מקבלות את מילון העיר כפרמטר ראשון — כך אותה מערכת
+עובדת על לונדון, פריז, או כל עיר אחרת ב-CITIES.
 """
 import datetime as dt
 import logging
@@ -10,8 +13,9 @@ from typing import Dict, Optional
 import requests
 
 from config import (
+    ENSEMBLE_MIN_MEMBERS, ENSEMBLE_MODELS,
     HTTP_BACKOFF, HTTP_RETRIES, HTTP_TIMEOUT,
-    LAT, LON, TIMEZONE,
+    OPEN_METEO_ENSEMBLE_URL,
     TEMP_SANITY_MAX, TEMP_SANITY_MIN,
     WEATHER_MODELS,
 )
@@ -36,19 +40,19 @@ def _http_get(url: str, params: dict) -> dict:
     raise RuntimeError(f"open-meteo failed after {HTTP_RETRIES} retries: {last_err}")
 
 
-def fetch_forecasts(forecast_days: int = 4) -> Dict[str, Dict[str, Optional[float]]]:
+def fetch_forecasts(city: dict,
+                    forecast_days: int = 4) -> Dict[str, Dict[str, Optional[float]]]:
     """
-    מחזיר {תאריך_ISO: {שם_מודל: טמפ_מקס_או_None}}.
-    ערכי None = המודל לא מספק תחזית לאותו יום או חרג מטווח שפיות.
+    {target_date: {שם_מודל: טמפ_מקס_או_None}} עבור העיר הנתונה.
     """
     models_csv = ",".join(WEATHER_MODELS.values())
     params = {
-        "latitude":          LAT,
-        "longitude":         LON,
+        "latitude":          city["lat"],
+        "longitude":         city["lon"],
         "daily":             "temperature_2m_max",
         "temperature_unit":  "celsius",
         "models":            models_csv,
-        "timezone":          TIMEZONE,
+        "timezone":          city["timezone"],
         "forecast_days":     forecast_days,
     }
     data = _http_get(OPEN_METEO_URL, params)
@@ -62,29 +66,72 @@ def fetch_forecasts(forecast_days: int = 4) -> Dict[str, Dict[str, Optional[floa
         for i, date in enumerate(dates):
             val = values[i] if i < len(values) else None
             if val is not None and not (TEMP_SANITY_MIN <= val <= TEMP_SANITY_MAX):
-                log.warning("ערך חריג בטווח: %s %s = %s°C — מסנן", display_name, date, val)
+                log.warning("[%s] ערך חריג: %s %s = %s°C — מסנן",
+                            city["key"], display_name, date, val)
                 val = None
             result[date][display_name] = val
     return result
 
 
-def _fetch_single_ensemble(model_slug: str, target_date: dt.date,
-                            forecast_days: int = 3) -> Optional[dict]:
-    from config import ENSEMBLE_MIN_MEMBERS, OPEN_METEO_ENSEMBLE_URL
+def detect_outliers(per_model: Dict[str, Optional[float]],
+                    threshold_c: float) -> Dict[str, float]:
+    available = {m: v for m, v in per_model.items() if v is not None}
+    if len(available) < 3:
+        return {}
+    vals = sorted(available.values())
+    n = len(vals)
+    median = vals[n // 2] if n % 2 == 1 else (vals[n // 2 - 1] + vals[n // 2]) / 2
+    outliers = {}
+    for name, v in available.items():
+        deviation = v - median
+        if abs(deviation) > threshold_c:
+            outliers[name] = deviation
+    return outliers
 
+
+def consensus(per_model: Dict[str, Optional[float]],
+              outliers: Optional[Dict[str, float]] = None) -> dict:
+    outliers = outliers or {}
+    used = {m: v for m, v in per_model.items()
+            if v is not None and m not in outliers}
+    n = len(used)
+    if n == 0:
+        return {"mean": None, "std": None, "n": 0,
+                "models": {}, "all_models": per_model, "outliers": outliers}
+    values = list(used.values())
+    mean = sum(values) / n
+    if n >= 2:
+        var = sum((v - mean) ** 2 for v in values) / (n - 1)
+        std = var ** 0.5
+    else:
+        std = 0.0
+    return {
+        "mean":       mean,
+        "std":        std,
+        "n":          n,
+        "models":     used,
+        "all_models": per_model,
+        "outliers":   outliers,
+    }
+
+
+def _fetch_single_ensemble(city: dict, model_slug: str,
+                            target_date: dt.date,
+                            forecast_days: int = 3) -> Optional[dict]:
     params = {
-        "latitude":         LAT,
-        "longitude":        LON,
+        "latitude":         city["lat"],
+        "longitude":        city["lon"],
         "daily":            "temperature_2m_max",
         "temperature_unit": "celsius",
         "models":           model_slug,
-        "timezone":         TIMEZONE,
+        "timezone":         city["timezone"],
         "forecast_days":    forecast_days,
     }
     try:
         data = _http_get(OPEN_METEO_ENSEMBLE_URL, params)
     except Exception as e:
-        log.warning("שליפת ensemble (%s) נכשלה: %s", model_slug, e)
+        log.warning("[%s] שליפת ensemble (%s) נכשלה: %s",
+                    city["key"], model_slug, e)
         return None
 
     daily = data.get("daily") or {}
@@ -110,8 +157,6 @@ def _fetch_single_ensemble(model_slug: str, target_date: dt.date,
         values.append(float(v))
 
     if len(values) < ENSEMBLE_MIN_MEMBERS:
-        log.info("ensemble (%s): רק %d חברים לתאריך %s — מתחת לסף",
-                 model_slug, len(values), tgt)
         return None
 
     n = len(values)
@@ -127,36 +172,20 @@ def _fetch_single_ensemble(model_slug: str, target_date: dt.date,
     }
 
 
-def fetch_ensemble_spread(target_date: dt.date,
+def fetch_ensemble_spread(city: dict, target_date: dt.date,
                            forecast_days: int = 3) -> Optional[dict]:
-    """
-    שולף את כל האנסמבלים המוגדרים ב-ENSEMBLE_MODELS ומחזיר:
-      {
-        "systems": {display_name: {mean, std, n_members, min, max}},
-        "combined_std": max של σ בין כל האנסמבלים (הערכה שמרנית),
-        "combined_members": סכום מספר החברים בכל האנסמבלים,
-        "agreement_c": |ממוצע ECMWF - ממוצע GEFS|  (מידת הסכמה בין המערכות)
-      }
-    None אם אף אנסמבל לא החזיר נתונים תקפים.
-    """
-    from config import ENSEMBLE_MODELS
-
     systems = {}
     for display_name, slug in ENSEMBLE_MODELS.items():
-        result = _fetch_single_ensemble(slug, target_date, forecast_days)
+        result = _fetch_single_ensemble(city, slug, target_date, forecast_days)
         if result is not None:
             systems[display_name] = result
-
     if not systems:
         return None
-
     stds = [s["std"] for s in systems.values()]
     combined_std = max(stds) if stds else None
     total_members = sum(s["n_members"] for s in systems.values())
-
     means = [s["mean"] for s in systems.values()]
     agreement = (max(means) - min(means)) if len(means) >= 2 else 0.0
-
     return {
         "systems":           systems,
         "combined_std":      combined_std,
@@ -165,25 +194,21 @@ def fetch_ensemble_spread(target_date: dt.date,
     }
 
 
-def fetch_remaining_hourly_forecast(now) -> Optional[dict]:
-    """
-    שולף את תחזית הטמפ' השעתית לשעות שנותרו היום (מ-now עד סוף יום מקומי).
-    משמש כשכבר יש לנו תצפיות METAR אמיתיות על העבר, ורוצים לדעת מה הצפי להמשך.
-    מחזיר: {remaining_forecast_max, hours_remaining, remaining_values}
-    """
+def fetch_remaining_hourly_forecast(city: dict, now) -> Optional[dict]:
+    """תחזית שעתית לשעות שנותרו היום בעיר הנתונה."""
     today_iso = now.date().isoformat()
     try:
         data = _http_get(OPEN_METEO_URL, {
-            "latitude":          LAT,
-            "longitude":         LON,
+            "latitude":          city["lat"],
+            "longitude":         city["lon"],
             "hourly":            "temperature_2m",
             "temperature_unit":  "celsius",
-            "timezone":          TIMEZONE,
+            "timezone":          city["timezone"],
             "start_date":        today_iso,
             "end_date":          today_iso,
         })
     except Exception as e:
-        log.warning("שליפת תחזית שעתית נכשלה: %s", e)
+        log.warning("[%s] שליפת תחזית שעתית נכשלה: %s", city["key"], e)
         return None
 
     hourly = (data.get("hourly") or {})
@@ -207,56 +232,4 @@ def fetch_remaining_hourly_forecast(now) -> Optional[dict]:
         "remaining_forecast_max": max(remaining_vals),
         "hours_remaining":        len(remaining_vals),
         "remaining_values":       remaining_vals,
-    }
-
-
-def detect_outliers(per_model: Dict[str, Optional[float]],
-                    threshold_c: float) -> Dict[str, float]:
-    """
-    מודל שחורג יותר מ-threshold_c מהחציון של השאר נחשב חריג.
-    מחזיר {שם_מודל: סטיה_מהחציון} רק עבור החריגים.
-    """
-    available = {m: v for m, v in per_model.items() if v is not None}
-    if len(available) < 3:
-        return {}
-    vals = sorted(available.values())
-    # חציון (של n זוגי — ממוצע של שני האמצעיים)
-    n = len(vals)
-    median = vals[n // 2] if n % 2 == 1 else (vals[n // 2 - 1] + vals[n // 2]) / 2
-    outliers = {}
-    for name, v in available.items():
-        deviation = v - median
-        if abs(deviation) > threshold_c:
-            outliers[name] = deviation
-    return outliers
-
-
-def consensus(per_model: Dict[str, Optional[float]],
-              outliers: Optional[Dict[str, float]] = None) -> dict:
-    """
-    מחשב ממוצע קונצנזוס + סטיית תקן בין-מודלית על הערכים שזמינים.
-    אם outliers סופקו — הם מוסרים לפני חישוב הממוצע.
-    n הוא מספר המודלים שהגיבו בהצלחה ולא סומנו כחריגים.
-    """
-    outliers = outliers or {}
-    used = {m: v for m, v in per_model.items()
-            if v is not None and m not in outliers}
-    n = len(used)
-    if n == 0:
-        return {"mean": None, "std": None, "n": 0,
-                "models": {}, "all_models": per_model, "outliers": outliers}
-    values = list(used.values())
-    mean = sum(values) / n
-    if n >= 2:
-        var = sum((v - mean) ** 2 for v in values) / (n - 1)
-        std = var ** 0.5
-    else:
-        std = 0.0
-    return {
-        "mean":       mean,
-        "std":        std,
-        "n":          n,
-        "models":     used,           # רק הזמינים + לא-חריגים
-        "all_models": per_model,      # כולל None וכולל outliers
-        "outliers":   outliers,       # שמות + סטיה מהחציון
     }

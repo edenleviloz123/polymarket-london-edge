@@ -1,25 +1,51 @@
 """
 קונפיגורציה מרכזית לשכבת המודיעין הכמותי.
-כל פרמטר שלוקחים ממנו החלטה — מופיע כאן, במקום אחד.
+כל פרמטר שמקבלים עליו החלטה מופיע כאן, במקום אחד.
 """
 from zoneinfo import ZoneInfo
 
-# ── מיקום הפיזי של חוזי הטמפרטורה ──────────────────────────
-# חשוב: Polymarket מיישב את החוזים לפי התחזית ל-London City Airport (EGLC)
-# כפי שמצויין ב-"Resolution source" של האירוע ב-Wunderground,
-# ולא לפי Heathrow (EGLL). הקואורדינטות למטה הן של EGLC.
-CITY_NAME_HE = "לונדון (City Airport / EGLC)"
-CITY_NAME_EN = "London City Airport"
-LAT = 51.5048                    # London City Airport (EGLC) — תחנת הייחוס של Polymarket
-LON = 0.0495
-TIMEZONE = "Europe/London"
-TIMEZONE_TZ = ZoneInfo(TIMEZONE)
-# אזור זמן של המשתמש — מוצג במקביל ללונדון בדשבורד
+# ── רשימת הערים לסריקה ───────────────────────────────────
+# כל ערך ברשימה הוא מילון עם כל מה שצריך לסרוק עיר:
+#   קואורדינטות, אזור זמן, תחנת METAR (קוד ICAO),
+#   הכתובת בוונדרגראונד, וה-slug של פולימארקט לאותה עיר.
+# ניתן להרחיב ערים נוספות בהמשך באמצעות הוספת מילון נוסף.
+CITIES = [
+    {
+        "key":                  "london",
+        "display_name_he":      "לונדון",
+        "display_name_en":      "London",
+        "lat":                  51.5048,
+        "lon":                  0.0495,
+        "timezone":             "Europe/London",
+        "metar_station":        "EGLC",
+        "wu_url_part":          "gb/london/EGLC",
+        "polymarket_city_slug": "london",
+        "unit":                 "C",
+    },
+    {
+        "key":                  "paris",
+        "display_name_he":      "פריז",
+        "display_name_en":      "Paris",
+        "lat":                  49.0097,   # Charles de Gaulle
+        "lon":                  2.5479,
+        "timezone":             "Europe/Paris",
+        "metar_station":        "LFPG",
+        "wu_url_part":          "fr/paris/LFPG",
+        "polymarket_city_slug": "paris",
+        "unit":                 "C",
+    },
+]
+
+# העיר ה"ברירת-מחדל" לצורכי שליפות גלובליות (אם מישהו עדיין משתמש).
+# בעתיד נסיר את זה כליל.
+DEFAULT_CITY = CITIES[0]
+TIMEZONE_TZ = ZoneInfo(DEFAULT_CITY["timezone"])
+
+# אזור זמן של המשתמש — מוצג במקביל בדשבורד
 USER_TZ_NAME = "Asia/Jerusalem"
 USER_TZ = ZoneInfo(USER_TZ_NAME)
 
 # ── חמשת מודלי מזג האוויר הגלובליים ────────────────────────
-# (שם תצוגה → slug ב-Open-Meteo)
 WEATHER_MODELS = {
     "MeteoFrance": "meteofrance_seamless",
     "ICON":        "icon_seamless",
@@ -27,77 +53,64 @@ WEATHER_MODELS = {
     "UKMO":        "ukmo_seamless",
     "ECMWF":       "ecmwf_ifs025",
 }
-MIN_MODELS_REQUIRED = 3  # דורשים לפחות 3/5 מודלים זמינים כדי לסמוך על הקונצנזוס
+MIN_MODELS_REQUIRED = 3
 
 # ── פרמטרים להמרת טמפרטורה → הסתברות ──────────────────────
-# σ אפקטיבי = max(σ_בין-מודלים, σ_ensemble, MIN_SIGMA).
-# (א) σ_בין-מודלים — פיזור בין החמישה
-# (ב) σ_ensemble  — סטיית תקן של 50 חברי ECMWF EPS (מדד סטטיסטי אמיתי
-#                   של אי-ודאות; מהווה את הבסיס לחישוב)
-# (ג) MIN_SIGMA    — רצפה אולטימטיבית; ערכה קטן כעת כי יש לנו EPS
 MIN_SIGMA = 0.1
 
 # ── ולידציה ──────────────────────────────────────────────
-TEMP_SANITY_MIN = -20.0          # בלונדון לא קר מזה
-TEMP_SANITY_MAX = 45.0           # ולא חם מזה
+TEMP_SANITY_MIN = -20.0
+TEMP_SANITY_MAX = 45.0
 
 # ── ספי איתות ─────────────────────────────────────────────
-EDGE_THRESHOLD_BUY = 0.03        # 3% – סף קנייה
-EDGE_THRESHOLD_STRONG = 0.08     # 8% – סף קנייה חזקה
-# סף הסתברות מינימלי כדי שאיתות קנייה ייחשב תקף.
-# מונע המלצה על אירוע לא-סביר גם אם הוא מתומחר זול מדי בשוק.
-MIN_PROB_FOR_BUY = 0.30          # bucket חייב להיות לפחות 30% סבירות אצלנו
+EDGE_THRESHOLD_BUY = 0.03
+EDGE_THRESHOLD_STRONG = 0.08
+MIN_PROB_FOR_BUY = 0.30
 
-# סינון חוזים לא-סחירים (מחיר קרוב מאוד ל-0 או 1)
 PRICE_MIN_TRADABLE = 0.005
 PRICE_MAX_TRADABLE = 0.995
 
 # ── Polymarket ────────────────────────────────────────────
 GAMMA_BASE = "https://gamma-api.polymarket.com"
-BROAD_SCAN_LIMIT = 1000           # סריקה רחבה של עד 1000 אירועים
-MARKET_KEYWORDS_REQUIRED = ["temperature"]        # חייב להופיע בכותרת האירוע
-MARKET_KEYWORDS_ANY = ["london", "heathrow"]      # אחת מהן חייבת להופיע
-MARKET_CITY_SLUG = "london"                       # לחיפוש slug ישיר
-
-# ── Ensemble Prediction Systems ──────────────────────────
-# שני אנסמבלים עצמאיים: ECMWF EPS (אירופה, 50 חברים)
-# ו-NOAA GEFS (ארה"ב, 30 חברים). כל אחד עם תנאי התחלה מעוותים.
-# הפיזור בכל אחד הוא אומדן σ סטטיסטי, והעובדה שהם עצמאיים מדעית
-# אומרת שהסכמה ביניהם = ביטחון אמיתי, אי-הסכמה = אזהרה חשובה.
-OPEN_METEO_ENSEMBLE_URL = "https://ensemble-api.open-meteo.com/v1/ensemble"
-ENSEMBLE_MODELS = {
-    "ECMWF EPS": "ecmwf_ifs025",
-    "NOAA GEFS": "gfs025",
-}
-ENSEMBLE_MIN_MEMBERS = 10      # דרישת מינימום כדי לסמוך על הפיזור של אחד מהם
+BROAD_SCAN_LIMIT = 1000
+MARKET_KEYWORDS_REQUIRED = ["temperature"]
+MARKET_KEYWORDS_ANY = [c["polymarket_city_slug"] for c in CITIES]
 
 # ── HTTP ─────────────────────────────────────────────────
 HTTP_TIMEOUT = 20
 HTTP_RETRIES = 3
 HTTP_BACKOFF = 1.6
 
+# ── Ensemble Prediction Systems ──────────────────────────
+OPEN_METEO_ENSEMBLE_URL = "https://ensemble-api.open-meteo.com/v1/ensemble"
+ENSEMBLE_MODELS = {
+    "ECMWF EPS": "ecmwf_ifs025",
+    "NOAA GEFS": "gfs025",
+}
+ENSEMBLE_MIN_MEMBERS = 10
+
 # ── סינון חריגים בין-מודלים ───────────────────────────────
-# מודל שחורג מעל הסף הזה מהחציון של השאר — מסומן כ-outlier
-# בדשבורד (צ'יפ אדום) ומושמט מחישוב הקונצנזוס באותו יום.
 OUTLIER_THRESHOLD_C = 2.0
 
 # ── תצוגת חוזים ───────────────────────────────────────────
-# להציג רק את N ההסתברויות הגבוהות ביותר בטבלה (פחות רעש).
 TOP_N_BUCKETS = 4
 
 # ── מעקב דיוק מודלים לאורך זמן ────────────────────────────
-ACCURACY_JSON   = "docs/accuracy.json"     # מדדי דיוק מצטברים
-FORECASTS_LOG   = "docs/forecasts.jsonl"   # לוג תחזיות לכל הרצה (append-only)
-OBSERVATIONS_JSON = "docs/observations.json"   # מקס' יומי בפועל שנמדד
-ACCURACY_MAX_DAYS = 60                      # חלון מעקב דיוק
-# נותנים לזה 6 שעות להיסגר אחרי סוף היום לפני שנאסוף תצפית
+ACCURACY_JSON     = "docs/accuracy.json"
+FORECASTS_LOG     = "docs/forecasts.jsonl"
+OBSERVATIONS_JSON = "docs/observations.json"
+ACCURACY_MAX_DAYS = 60
 OBSERVATION_CUTOFF_HOURS = 6
-# כמה מודלים עם MAE-נמוך להצליב לשכבת "הסכמה זהב" (לעתיד)
-ACCURACY_HIT_WINDOW_C = 1.0                 # "פגע בטווח" = הפרש ≤ זה
+ACCURACY_HIT_WINDOW_C = 1.0
+
+# ── מעקב איתותים (paper trading) ─────────────────────────
+SIGNALS_LOG         = "docs/signals.jsonl"
+PAPER_BANKROLL_USD  = 100.0      # "בנקרול" תאורטי לחישוב גודל פוזיציות
+KELLY_FRACTION      = 0.5        # half-kelly — שמרני, מופחת סיכוי לפשיטת רגל
 
 # ── תפוקה ─────────────────────────────────────────────────
-OUTPUT_DIR  = "docs"
-OUTPUT_HTML = "docs/index.html"
-OUTPUT_JSON = "docs/data.json"
+OUTPUT_DIR   = "docs"
+OUTPUT_HTML  = "docs/index.html"
+OUTPUT_JSON  = "docs/data.json"
 HISTORY_JSON = "docs/history.json"
-HISTORY_MAX_ENTRIES = 96          # ~יממה בקצב 15 דקות
+HISTORY_MAX_ENTRIES = 96

@@ -15,7 +15,7 @@ import requests
 from config import (
     BROAD_SCAN_LIMIT, GAMMA_BASE,
     HTTP_BACKOFF, HTTP_RETRIES, HTTP_TIMEOUT,
-    MARKET_CITY_SLUG, MARKET_KEYWORDS_ANY, MARKET_KEYWORDS_REQUIRED,
+    MARKET_KEYWORDS_ANY, MARKET_KEYWORDS_REQUIRED,
 )
 
 log = logging.getLogger(__name__)
@@ -169,15 +169,14 @@ def fetch_event_by_slug(slug: str) -> Optional[dict]:
     return None
 
 
-def build_candidate_slugs(target_date) -> List[str]:
+def build_candidate_slugs(city: dict, target_date) -> List[str]:
     """
     ה-slug של Polymarket בדר"כ: highest-temperature-in-<city>-on-<month>-<day>-<year>
-    (מקרים ישנים נעדרים מה-year, אז ננסה שניהם.)
     """
     month = target_date.strftime("%B").lower()
     day   = target_date.day
     year  = target_date.year
-    base  = f"highest-temperature-in-{MARKET_CITY_SLUG}-on-{month}-{day}"
+    base  = f"highest-temperature-in-{city['polymarket_city_slug']}-on-{month}-{day}"
     return [f"{base}-{year}", base]
 
 
