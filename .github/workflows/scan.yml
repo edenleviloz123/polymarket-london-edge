@@ -47,15 +47,12 @@ jobs:
           set -e
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          echo "--- state files on disk ---"
-          ls -la docs/forecasts.jsonl docs/observations.json \
-                 docs/history.json    docs/accuracy.json 2>&1 || true
-          echo "--- git status (docs only) ---"
-          git status --short docs/ || true
-          git add docs/forecasts.jsonl docs/observations.json \
-                  docs/history.json    docs/accuracy.json 2>&1 || true
-          echo "--- git diff --cached --stat ---"
-          git diff --cached --stat
+          # מוסיפים רק קבצים שקיימים (observations.json / accuracy.json
+          # עשויים שלא להיווצר בהרצות הראשונות — לפני שיום נסגר)
+          for f in docs/forecasts.jsonl docs/observations.json \
+                   docs/history.json    docs/accuracy.json; do
+            [ -f "$f" ] && git add "$f"
+          done
           if git diff --cached --quiet; then
             echo "אין שינויים ב-state לקומיט."
           else
