@@ -140,12 +140,16 @@ def fetch_metar_observations(now: dt.datetime, hours: int = 24) -> Optional[dict
     peak_row = max(rows, key=lambda r: r["temp"])
     latest = rows[-1]
 
+    latest_t = latest["t_local"]
+    # גיל הדיווח האחרון ביחס לזמן הנוכחי (הקריאה של now למעלה)
+    age_min = max(0, int((now - latest_t).total_seconds() / 60))
     return {
         "observed_max_int":  observed_max,
         "peak_time_local":   peak_row["t_local"].strftime("%H:%M"),
         "peak_temp":         peak_row["temp"],
         "report_count":      len(rows),
-        "latest_time_local": latest["t_local"].strftime("%H:%M"),
+        "latest_time_local": latest_t.strftime("%H:%M"),
         "latest_temp":       latest["temp"],
+        "latest_age_min":    age_min,
         "raw_sample":        latest.get("raw"),
     }

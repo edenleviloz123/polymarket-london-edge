@@ -68,29 +68,23 @@ def fetch_forecasts(forecast_days: int = 4) -> Dict[str, Dict[str, Optional[floa
     return result
 
 
-def fetch_ensemble_spread(target_date: dt.date,
-                           forecast_days: int = 3) -> Optional[dict]:
-    """
-    שולף ECMWF EPS (50 חברים) לתאריך היעד ומחזיר:
-      {mean, std, n_members, min, max, target_date}
-    ה-std הוא מדד סטטיסטי אמיתי של אי-הוודאות בתחזית לאותו יום.
-    None אם פחות מ-ENSEMBLE_MIN_MEMBERS חברים החזירו ערכים תקפים.
-    """
-    from config import ENSEMBLE_MIN_MEMBERS, ENSEMBLE_MODEL, OPEN_METEO_ENSEMBLE_URL
+def _fetch_single_ensemble(model_slug: str, target_date: dt.date,
+                            forecast_days: int = 3) -> Optional[dict]:
+    from config import ENSEMBLE_MIN_MEMBERS, OPEN_METEO_ENSEMBLE_URL
 
     params = {
         "latitude":         LAT,
         "longitude":        LON,
         "daily":            "temperature_2m_max",
         "temperature_unit": "celsius",
-        "models":           ENSEMBLE_MODEL,
+        "models":           model_slug,
         "timezone":         TIMEZONE,
         "forecast_days":    forecast_days,
     }
     try:
         data = _http_get(OPEN_METEO_ENSEMBLE_URL, params)
     except Exception as e:
-        log.warning("שליפת EPS נכשלה: %s", e)
+        log.warning("שליפת ensemble (%s) נכשלה: %s", model_slug, e)
         return None
 
     daily = data.get("daily") or {}
@@ -100,12 +94,10 @@ def fetch_ensemble_spread(target_date: dt.date,
         return None
     idx = dates.index(tgt)
 
-    # אוספים את כל ערכי ה-members לאותו יום
     values = []
     for key, series in daily.items():
         if not key.startswith("temperature_2m_max"):
             continue
-        # יש גם "temperature_2m_max" (ממוצע ה-control run) וגם _memberXX
         if "_member" not in key:
             continue
         if idx >= len(series):
@@ -118,8 +110,8 @@ def fetch_ensemble_spread(target_date: dt.date,
         values.append(float(v))
 
     if len(values) < ENSEMBLE_MIN_MEMBERS:
-        log.info("EPS: רק %d חברים תקפים לתאריך %s — מתחת לסף",
-                 len(values), tgt)
+        log.info("ensemble (%s): רק %d חברים לתאריך %s — מתחת לסף",
+                 model_slug, len(values), tgt)
         return None
 
     n = len(values)
@@ -132,7 +124,44 @@ def fetch_ensemble_spread(target_date: dt.date,
         "n_members":  n,
         "min":        min(values),
         "max":        max(values),
-        "target_date": tgt,
+    }
+
+
+def fetch_ensemble_spread(target_date: dt.date,
+                           forecast_days: int = 3) -> Optional[dict]:
+    """
+    שולף את כל האנסמבלים המוגדרים ב-ENSEMBLE_MODELS ומחזיר:
+      {
+        "systems": {display_name: {mean, std, n_members, min, max}},
+        "combined_std": max של σ בין כל האנסמבלים (הערכה שמרנית),
+        "combined_members": סכום מספר החברים בכל האנסמבלים,
+        "agreement_c": |ממוצע ECMWF - ממוצע GEFS|  (מידת הסכמה בין המערכות)
+      }
+    None אם אף אנסמבל לא החזיר נתונים תקפים.
+    """
+    from config import ENSEMBLE_MODELS
+
+    systems = {}
+    for display_name, slug in ENSEMBLE_MODELS.items():
+        result = _fetch_single_ensemble(slug, target_date, forecast_days)
+        if result is not None:
+            systems[display_name] = result
+
+    if not systems:
+        return None
+
+    stds = [s["std"] for s in systems.values()]
+    combined_std = max(stds) if stds else None
+    total_members = sum(s["n_members"] for s in systems.values())
+
+    means = [s["mean"] for s in systems.values()]
+    agreement = (max(means) - min(means)) if len(means) >= 2 else 0.0
+
+    return {
+        "systems":           systems,
+        "combined_std":      combined_std,
+        "combined_members":  total_members,
+        "agreement_c":       agreement,
     }
 
 

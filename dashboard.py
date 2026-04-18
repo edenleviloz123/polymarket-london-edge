@@ -129,24 +129,45 @@ def _render_arbitrage(arb: Optional[dict]) -> str:
 
 
 def _render_ensemble_stat(ens: Optional[dict]) -> str:
-    if not ens or ens.get("std") is None:
+    if not ens or ens.get("combined_std") is None:
         return ""
     return (f'<div>'
-            f'<span class="muted">EPS σ (ECMWF ensemble) {_info("ensemble")}</span>'
-            f'<strong>{ens["std"]:.2f}°C</strong>'
+            f'<span class="muted">σ אנסמבלים משולב {_info("ensemble")}</span>'
+            f'<strong>{ens["combined_std"]:.2f}°C</strong>'
             f'</div>')
 
 
 def _render_ensemble_box(ens: Optional[dict]) -> str:
-    if not ens:
+    """מציג כל אנסמבל בנפרד + מדד ההסכמה ביניהם."""
+    if not ens or not ens.get("systems"):
         return ""
-    return (f'<div class="ens-box">'
-            f'<strong>ECMWF EPS</strong> — '
-            f'{ens["n_members"]} חברי ensemble: '
-            f'ממוצע <strong>{ens["mean"]:.2f}°C</strong>, '
-            f'טווח <strong>{ens["min"]:.1f}°C עד {ens["max"]:.1f}°C</strong>, '
-            f'σ סטטיסטי <strong>{ens["std"]:.2f}°C</strong>'
-            f'</div>')
+    rows = []
+    for name, s in ens["systems"].items():
+        rows.append(
+            f'<div class="ens-row">'
+            f'<strong>{_esc(name)}</strong> · '
+            f'{s["n_members"]} חברים · '
+            f'ממוצע <strong>{s["mean"]:.2f}°C</strong> · '
+            f'טווח {s["min"]:.1f}°C עד {s["max"]:.1f}°C · '
+            f'σ <strong>{s["std"]:.2f}°C</strong>'
+            f'</div>'
+        )
+    # מדד הסכמה בין המערכות
+    agreement = ens.get("agreement_c", 0)
+    if len(ens["systems"]) >= 2:
+        if agreement < 0.3:
+            agr_text = f"הסכמה טובה בין המערכות ({agreement:.2f}°C הפרש ממוצעים)"
+            agr_cls = "good"
+        elif agreement < 0.8:
+            agr_text = f"הסכמה בינונית ({agreement:.2f}°C הפרש ממוצעים)"
+            agr_cls = "mid"
+        else:
+            agr_text = f"⚠ חוסר הסכמה ({agreement:.2f}°C הפרש ממוצעים) — אי-ודאות אמיתית"
+            agr_cls = "bad"
+        rows.append(
+            f'<div class="ens-agreement ens-agreement--{agr_cls}">{agr_text}</div>'
+        )
+    return f'<div class="ens-box">{"".join(rows)}</div>'
 
 
 def _render_model_chips(cons: dict) -> str:
@@ -351,7 +372,14 @@ def _render_run(run: dict) -> str:
         state_txt = "השיא היומי כבר עבר — התוצאה כמעט נעולה." if post_peak else "השיא היומי עדיין יכול לקרות בשעות שנותרו."
         rem_html = (f'תחזית לשעות שנותרו: <strong>{rfc:.1f}°C</strong>. '
                     if rfc is not None else '')
-        latest_html = (f'דיווח אחרון בשעה <strong>{_esc(lt)}</strong>: '
+        age = obs.get("latest_age_min")
+        age_txt = f" (לפני {age} דק׳)" if isinstance(age, int) else ""
+        age_cls = ""
+        if isinstance(age, int):
+            if age <= 35:    age_cls = " age-fresh"
+            elif age <= 70:  age_cls = " age-mid"
+            else:            age_cls = " age-stale"
+        latest_html = (f'דיווח אחרון בשעה <strong class="metar-age{age_cls}">{_esc(lt)}{age_txt}</strong>: '
                        f'<strong>{ltemp}°C</strong>. ' if ltemp is not None else '')
         raw_html = (f'<div class="metar-raw">METAR גולמי: <code>{_esc(raw)}</code></div>'
                     if raw else '')
@@ -617,6 +645,9 @@ def render_dashboard(payload: dict) -> str:
     background:color-mix(in srgb, #6AB4E0 10%, transparent);
     color:color-mix(in srgb, #9BD3F2 80%, white); line-height:1.7; }}
   .banner--obs strong {{ color:#9BD3F2; }}
+  .metar-age.age-fresh {{ color:var(--pos); }}
+  .metar-age.age-mid   {{ color:var(--warn); }}
+  .metar-age.age-stale {{ color:var(--neg); }}
   .metar-raw {{ margin-top:8px; font-size:12px; opacity:0.85; }}
   .metar-raw code {{ background:#0B1114; color:var(--mint);
     padding:2px 6px; border-radius:4px; font-family:'Consolas','Courier New',monospace;
@@ -634,11 +665,19 @@ def render_dashboard(payload: dict) -> str:
   .consensus__stats div {{ display:flex; flex-direction:column; gap:2px; }}
   .consensus__stats strong {{ font-size:18px; color:var(--text); }}
 
-  .ens-box {{ width:100%; margin-top:10px; padding:8px 12px;
+  .ens-box {{ width:100%; margin-top:10px; padding:10px 14px;
     background:color-mix(in srgb, var(--mint) 6%, transparent);
     border:1px solid color-mix(in srgb, var(--mint) 30%, transparent);
-    border-radius:8px; font-size:13px; line-height:1.6; }}
+    border-radius:8px; font-size:13px; line-height:1.7; }}
   .ens-box strong {{ color:var(--mint); }}
+  .ens-row {{ padding:3px 0; }}
+  .ens-row + .ens-row {{ border-top:1px dotted color-mix(in srgb, var(--mint) 15%, transparent); }}
+  .ens-agreement {{ margin-top:6px; padding-top:6px;
+    border-top:1px dashed color-mix(in srgb, var(--mint) 25%, transparent);
+    font-size:12px; }}
+  .ens-agreement--good {{ color:var(--pos); }}
+  .ens-agreement--mid  {{ color:var(--warn); }}
+  .ens-agreement--bad  {{ color:var(--neg); font-weight:600; }}
 
   .arb {{ margin-top:16px; padding:12px 14px; border-radius:8px;
     border:1px solid var(--border); font-size:13px; line-height:1.6; }}

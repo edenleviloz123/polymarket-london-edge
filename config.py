@@ -59,13 +59,17 @@ MARKET_KEYWORDS_REQUIRED = ["temperature"]        # חייב להופיע בכו
 MARKET_KEYWORDS_ANY = ["london", "heathrow"]      # אחת מהן חייבת להופיע
 MARKET_CITY_SLUG = "london"                       # לחיפוש slug ישיר
 
-# ── ECMWF EPS (Ensemble Prediction System) ───────────────
-# 50 חברי ensemble של ECMWF — כל אחד עם תנאי התחלה מעוותים בצורה
-# מדעית כדי למדוד אי-ודאות אמיתית של התחזית. הפיזור בין החברים הוא
-# אומדן סטטיסטי של σ (במקום להחליט עליו בשרירותיות).
+# ── Ensemble Prediction Systems ──────────────────────────
+# שני אנסמבלים עצמאיים: ECMWF EPS (אירופה, 50 חברים)
+# ו-NOAA GEFS (ארה"ב, 30 חברים). כל אחד עם תנאי התחלה מעוותים.
+# הפיזור בכל אחד הוא אומדן σ סטטיסטי, והעובדה שהם עצמאיים מדעית
+# אומרת שהסכמה ביניהם = ביטחון אמיתי, אי-הסכמה = אזהרה חשובה.
 OPEN_METEO_ENSEMBLE_URL = "https://ensemble-api.open-meteo.com/v1/ensemble"
-ENSEMBLE_MODEL = "ecmwf_ifs025"
-ENSEMBLE_MIN_MEMBERS = 10      # דרישת מינימום כדי לסמוך על הפיזור
+ENSEMBLE_MODELS = {
+    "ECMWF EPS": "ecmwf_ifs025",
+    "NOAA GEFS": "gfs025",
+}
+ENSEMBLE_MIN_MEMBERS = 10      # דרישת מינימום כדי לסמוך על הפיזור של אחד מהם
 
 # ── HTTP ─────────────────────────────────────────────────
 HTTP_TIMEOUT = 20

@@ -97,7 +97,8 @@ def run_for_date(target_date: dt.date, forecasts: dict, ts_iso: str,
         "rationale": "אין מספיק נתוני מודלים או חוזים כדי להסיק איתות.",
     }
     if cons["n"] >= MIN_MODELS_REQUIRED and cons["mean"] is not None and contracts:
-        ensemble_std = (ensemble or {}).get("std")
+        # combined_std = σ שמרני בין שני האנסמבלים; מחליף את הגרסה הישנה עם std יחיד
+        ensemble_std = (ensemble or {}).get("combined_std")
         edges = compute_edges(contracts, cons["mean"], cons["std"],
                               observation=observation,
                               ensemble_std=ensemble_std)
@@ -172,6 +173,7 @@ def main():
             "report_count":           metar.get("report_count"),
             "latest_time_local":      metar.get("latest_time_local"),
             "latest_temp":            metar.get("latest_temp"),
+            "latest_age_min":         metar.get("latest_age_min"),
             "raw_sample":             metar.get("raw_sample"),
             "remaining_forecast_max": (remaining or {}).get("remaining_forecast_max"),
             "hours_remaining":        (remaining or {}).get("hours_remaining", 0),
@@ -186,18 +188,23 @@ def main():
 
     target_dates = [today, today + dt.timedelta(days=1)]
 
-    # ECMWF EPS — 50 חברי ensemble לכל תאריך, כדי לאמוד σ סטטיסטי
+    # ECMWF EPS + NOAA GEFS — שני אנסמבלים עצמאיים לכל תאריך,
+    # σ שמרני = max(ECMWF_std, GEFS_std)
     ensembles = {}
     for d in target_dates:
         try:
             eps = fetch_ensemble_spread(d)
             if eps:
                 ensembles[d.isoformat()] = eps
-                log.info("EPS %s: %d חברים, mean=%.2f°C, std=%.2f°C, range=%.1f-%.1f",
-                         d.isoformat(), eps["n_members"],
-                         eps["mean"], eps["std"], eps["min"], eps["max"])
+                summary = " · ".join(
+                    f"{name}: {s['n_members']}חב', μ={s['mean']:.2f}, σ={s['std']:.2f}"
+                    for name, s in eps["systems"].items()
+                )
+                log.info("ensembles %s — %s · combined_std=%.2f · agreement=%.2f",
+                         d.isoformat(), summary,
+                         eps["combined_std"], eps["agreement_c"])
         except Exception as e:
-            log.warning("EPS נכשל לתאריך %s: %s", d, e)
+            log.warning("ensemble נכשל לתאריך %s: %s", d, e)
 
     runs = [run_for_date(d, forecasts, ts_iso,
                          observation=(observation_today if d == today else None),
