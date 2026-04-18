@@ -23,7 +23,7 @@ from openpyxl.utils import get_column_letter
 
 from config import (
     CITIES, FORECASTS_LOG, OBSERVATIONS_JSON, OUTPUT_DIR,
-    SIGNALS_LOG, USER_TZ, WEATHER_MODELS,
+    PRICES_LOG, SIGNALS_LOG, USER_TZ, WEATHER_MODELS,
 )
 
 log = logging.getLogger(__name__)
@@ -32,6 +32,7 @@ XLSX_PATH = f"{OUTPUT_DIR}/performance.xlsx"
 SIGNALS_CSV = f"{OUTPUT_DIR}/signals.csv"
 FORECASTS_CSV = f"{OUTPUT_DIR}/forecasts.csv"
 DAILY_CSV = f"{OUTPUT_DIR}/daily_performance.csv"
+PRICES_CSV = f"{OUTPUT_DIR}/prices.csv"
 
 
 # ─────────────────────────────────────────────
@@ -131,6 +132,28 @@ def export_forecasts_csv() -> int:
                 observed, err,
             ])
     return len(latest)
+
+
+def export_prices_csv() -> int:
+    rows = _load_jsonl(PRICES_LOG)
+    with open(PRICES_CSV, "w", encoding="utf-8-sig", newline="") as f:
+        w = csv.writer(f)
+        w.writerow([
+            "timestamp", "city", "target_date",
+            "bucket", "bucket_type", "bucket_temp",
+            "yes_price", "yes_best_bid", "yes_best_ask",
+            "volume", "our_prob", "minutes_to_close",
+        ])
+        for r in rows:
+            w.writerow([
+                r.get("ts"), r.get("city"), r.get("target_date"),
+                r.get("bucket_label"), r.get("bucket_type"),
+                r.get("bucket_temp"),
+                r.get("yes_price"), r.get("yes_best_bid"),
+                r.get("yes_best_ask"), r.get("volume"),
+                r.get("our_prob"), r.get("minutes_to_close"),
+            ])
+    return len(rows)
 
 
 def export_daily_performance_csv() -> int:
@@ -504,15 +527,17 @@ def export_all(performance: dict, accuracy: dict,
     n_signals   = export_signals_csv()
     n_forecasts = export_forecasts_csv()
     n_daily     = export_daily_performance_csv()
+    n_prices    = export_prices_csv()
     try:
         export_xlsx(performance, accuracy, generated_at)
     except Exception as e:
         log.warning("יצוא XLSX נכשל: %s", e)
-    log.info("יצוא: %d איתותים, %d תחזיות, %d ימים → %s",
-             n_signals, n_forecasts, n_daily, XLSX_PATH)
+    log.info("יצוא: %d איתותים, %d תחזיות, %d ימים, %d מחירים → %s",
+             n_signals, n_forecasts, n_daily, n_prices, XLSX_PATH)
     return {
         "signals_csv":   SIGNALS_CSV,
         "forecasts_csv": FORECASTS_CSV,
         "daily_csv":     DAILY_CSV,
+        "prices_csv":    PRICES_CSV,
         "xlsx":          XLSX_PATH,
     }

@@ -27,6 +27,7 @@ from accuracy import (
 )
 from arbitrage import compute_arbitrage
 from exports import export_all
+from prices import record_market_snapshot
 from config import (
     CITIES, HISTORY_JSON, HISTORY_MAX_ENTRIES,
     MIN_MODELS_REQUIRED, OUTLIER_THRESHOLD_C,
@@ -128,6 +129,15 @@ def run_city_date(city: dict, target_date: dt.date, forecasts: dict,
     event_end = ev.get("endDate") if ev else None
     record_signals(city["key"], target_date, signal, ts_iso,
                    event_end=event_end)
+
+    # מעקב מחירי שוק לאורך זמן (rate-limited ל-30 דק׳ ל-(עיר,יום))
+    if contracts:
+        try:
+            record_market_snapshot(city["key"], target_date, contracts,
+                                    edges, event_end, ts_iso)
+        except Exception as e:
+            log.warning("[%s] רישום snapshot מחירים נכשל: %s",
+                        city["key"], e)
 
     return {
         "target_date": target_date.isoformat(),

@@ -818,6 +818,7 @@ def render_dashboard(payload: dict) -> str:
       <a href="signals.csv" download>signals.csv</a>
       <a href="forecasts.csv" download>forecasts.csv</a>
       <a href="daily_performance.csv" download>daily_performance.csv</a>
+      <a href="prices.csv" download>prices.csv (שינויי מחירי שוק)</a>
     </div>
   </section>
 
