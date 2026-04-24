@@ -13,6 +13,7 @@ from typing import Dict, Optional
 import requests
 
 from config import (
+    BIAS_CORRECTION_ENABLED, BIAS_CORRECTION_MAX_C, BIAS_CORRECTION_MIN_N,
     ENSEMBLE_MIN_MEMBERS, ENSEMBLE_MODELS,
     HTTP_BACKOFF, HTTP_RETRIES, HTTP_TIMEOUT,
     OPEN_METEO_ENSEMBLE_URL,
@@ -40,10 +41,25 @@ def _http_get(url: str, params: dict) -> dict:
     raise RuntimeError(f"open-meteo failed after {HTTP_RETRIES} retries: {last_err}")
 
 
+def _load_bias_corrections(city_key: str) -> Dict[str, float]:
+    """שולף הטיות שיטתיות של מודלים עבור העיר, מתוך accuracy.json."""
+    if not BIAS_CORRECTION_ENABLED:
+        return {}
+    try:
+        from accuracy import get_model_biases
+        all_biases = get_model_biases(min_n=BIAS_CORRECTION_MIN_N,
+                                       max_c=BIAS_CORRECTION_MAX_C)
+        return all_biases.get(city_key, {})
+    except Exception as e:
+        log.warning("[%s] לא הצלחנו לטעון תיקוני הטיה: %s", city_key, e)
+        return {}
+
+
 def fetch_forecasts(city: dict,
                     forecast_days: int = 4) -> Dict[str, Dict[str, Optional[float]]]:
     """
     {target_date: {שם_מודל: טמפ_מקס_או_None}} עבור העיר הנתונה.
+    אם יש היסטוריה מספקת, הערכים מתוקנים להטיה שיטתית של כל מודל ועיר.
     """
     models_csv = ",".join(WEATHER_MODELS.values())
     params = {
@@ -60,15 +76,26 @@ def fetch_forecasts(city: dict,
     dates = daily.get("time", []) or []
     result: Dict[str, Dict[str, Optional[float]]] = {d: {} for d in dates}
 
+    biases = _load_bias_corrections(city["key"])
+    if biases:
+        log.info("[%s] תיקוני הטיה פעילים: %s",
+                 city["key"],
+                 ", ".join(f"{m}={v:+.2f}" for m, v in biases.items()))
+
     for display_name, slug in WEATHER_MODELS.items():
         key = f"temperature_2m_max_{slug}"
         values = daily.get(key) or []
+        bias = biases.get(display_name, 0.0)
         for i, date in enumerate(dates):
             val = values[i] if i < len(values) else None
-            if val is not None and not (TEMP_SANITY_MIN <= val <= TEMP_SANITY_MAX):
-                log.warning("[%s] ערך חריג: %s %s = %s°C — מסנן",
-                            city["key"], display_name, date, val)
-                val = None
+            if val is not None:
+                if not (TEMP_SANITY_MIN <= val <= TEMP_SANITY_MAX):
+                    log.warning("[%s] ערך חריג: %s %s = %s°C — מסנן",
+                                city["key"], display_name, date, val)
+                    val = None
+                elif bias:
+                    # הטיה חיובית = המודל חוזה חם מדי. מתקנים למטה.
+                    val = val - bias
             result[date][display_name] = val
     return result
 

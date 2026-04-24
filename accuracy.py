@@ -132,6 +132,39 @@ def refresh_observations_metar() -> Dict[str, Dict[str, float]]:
 # חישוב מדדי דיוק לכל מודל לכל עיר
 # ─────────────────────────────────────────────
 
+def get_model_biases(min_n: int = 5, max_c: float = 2.0) -> Dict[str, Dict[str, float]]:
+    """
+    טוען את accuracy.json ומחלץ הטיה ידועה לכל (עיר, מודל).
+    תנאים:
+      - לפחות min_n ימים של היסטוריה
+      - הטיה מוחלטת לא מעל max_c (סף שפיות)
+    מחזיר {city_key: {model_name: bias_c}}.
+    """
+    if not os.path.exists(ACCURACY_JSON):
+        return {}
+    try:
+        with open(ACCURACY_JSON, "r", encoding="utf-8") as f:
+            acc = json.load(f) or {}
+    except Exception:
+        return {}
+
+    result: Dict[str, Dict[str, float]] = {}
+    for city_key, block in (acc.get("per_city") or {}).items():
+        city_biases = {}
+        for model, s in (block.get("models") or {}).items():
+            if (s.get("n") or 0) < min_n:
+                continue
+            bias = s.get("bias")
+            if bias is None:
+                continue
+            if abs(bias) > max_c:
+                continue
+            city_biases[model] = bias
+        if city_biases:
+            result[city_key] = city_biases
+    return result
+
+
 def _empty_score() -> dict:
     return {"n": 0, "mae": None, "bias": None, "hit_1c": None,
             "bucket_hit": None, "rank_avg": None}
