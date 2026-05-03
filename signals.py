@@ -151,34 +151,41 @@ def _record_one(city_key: str, target_date: dt.date, strategy: str,
 def record_signals(city_key: str, target_date: dt.date, signal: dict,
                     ts_iso: str, event_end: Optional[str] = None) -> None:
     """
-    רושם עד שני איתותי paper-trading מקבילים:
-    (1) max_edge — ה-bucket עם היתרון הגדול ביותר (הפעולה הראשית)
-    (2) most_likely — ה-bucket הסביר ביותר לפי המודל, רק אם הוא
-        שונה מ-(1) וגם בעצמו עובר את סף הקנייה (edge ≥ 3% והסתברות ≥ 30%).
+    רושם paper-trade לכל אסטרטגיה שמכשירה את עצמה עצמאית. כל אחת
+    היא תיק וירטואלי נפרד. אין תלות באיזו אסטרטגיה היא ה-"ראשית"
+    בדשבורד — מה שחשוב הוא שכל אסטרטגיה תקבל הזדמנות להירשם בכל פעם
+    שהיא עובדת, כדי שנוכל להשוות בין השניים בנפרד.
 
-    event_end הוא endDate של האירוע בפולימארקט (ISO); משמש לחישוב
-    "דקות עד סגירה" לכל עסקה לצורך ניתוח איכות-תזמון בהמשך.
+    תנאי ההכשרה לכל אסטרטגיה: יתרון ≥ 3% וגם הסתברות ≥ 30%.
+
+    אם שתי האסטרטגיות מצביעות על אותו bucket, רושמים פעם אחת תחת
+    most_likely (כי הוא הוגדר כראשי).
     """
-    action = (signal or {}).get("action")
-    if action not in ("BUY", "STRONG_BUY"):
-        return
-
-    best = signal.get("best") or {}
     most_likely = signal.get("most_likely") or {}
-    best_label = (best.get("bucket") or {}).get("label")
-    ml_label = (most_likely.get("bucket") or {}).get("label")
+    best_edge   = signal.get("best_edge") or {}
 
-    if best_label:
-        _record_one(city_key, target_date, STRATEGY_MAX_EDGE,
-                     best, action, ts_iso, event_end=event_end)
-
-    if ml_label and ml_label != best_label:
-        ml_edge = float(most_likely.get("edge") or 0)
-        ml_prob = float(most_likely.get("our_prob") or 0)
-        if ml_edge >= EDGE_THRESHOLD_BUY and ml_prob >= MIN_PROB_FOR_BUY:
-            ml_action = ("STRONG_BUY" if ml_edge >= 0.08 else "BUY")
-            _record_one(city_key, target_date, STRATEGY_MOST_LIKELY,
-                         most_likely, ml_action, ts_iso, event_end=event_end)
+    # סדר הבדיקה: most_likely קודם (מקבל עדיפות אם אותו bucket)
+    candidates = [
+        (STRATEGY_MOST_LIKELY, most_likely),
+        (STRATEGY_MAX_EDGE,    best_edge),
+    ]
+    seen_labels = set()
+    for strategy_name, candidate in candidates:
+        if not candidate:
+            continue
+        label = (candidate.get("bucket") or {}).get("label")
+        if not label or label in seen_labels:
+            continue
+        edge_v = float(candidate.get("edge") or 0)
+        prob_v = float(candidate.get("our_prob") or 0)
+        if edge_v < EDGE_THRESHOLD_BUY:
+            continue
+        if prob_v < MIN_PROB_FOR_BUY:
+            continue
+        action = "STRONG_BUY" if edge_v >= 0.08 else "BUY"
+        _record_one(city_key, target_date, strategy_name,
+                     candidate, action, ts_iso, event_end=event_end)
+        seen_labels.add(label)
 
 
 # ─────────────────────────────────────────────

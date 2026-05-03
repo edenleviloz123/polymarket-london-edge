@@ -180,10 +180,19 @@ def compute_edges(contracts: List[dict], mu: float, sigma: Optional[float],
 
 def classify_signal(edges: List[dict]) -> dict:
     """
-    מחפש את ההזדמנות הטובה ביותר בין כל ה-buckets תוך שמירה על שני תנאים:
-    (1) יתרון (Edge) מעל הסף, (2) ההסתברות שלנו ל-bucket הזה ≥ MIN_PROB_FOR_BUY.
-    התנאי השני מונע המלצת קנייה על "זנב" לא-סביר רק בגלל מחיר שוק זול.
-    מחזיר גם את ה-bucket הכי סביר לפי המודל, כדי לתת למשתמש פרספקטיבה כפולה.
+    האסטרטגיה הראשית: most_likely (ה-bucket עם ההסתברות הגבוהה ביותר).
+    בנתונים שצברנו, אסטרטגיה זו נתנה ROI עקבי של ~25% לעומת ~9% של max_edge,
+    ולכן היא הופכת לכלי הראשי לקביעת ההמלצה בדשבורד.
+
+    תנאי קנייה (על most_likely):
+      - הסתברות שלנו ≥ MIN_PROB_FOR_BUY
+      - יתרון (Edge) ≥ EDGE_THRESHOLD_BUY (3%)
+
+    אם most_likely לא עובר את התנאים, בודקים אם יש bucket עם תמחור-יתר חמור
+    (worst_edge ≤ -3%) ואז מציגים AVOID. אחרת HOLD.
+
+    max_edge עדיין מחושב ומוצג כ"חלופה" בדשבורד, ולוג ה-paper-trading
+    ממשיך לרשום אותו כאסטרטגיה שנייה כדי שנוכל להשוות.
     """
     empty = {
         "action":         "NO_DATA",
@@ -196,7 +205,6 @@ def classify_signal(edges: List[dict]) -> dict:
     if not edges:
         return empty
 
-    # רק חוזים שעדיין סחירים בטווח סביר
     tradable = [e for e in edges
                 if PRICE_MIN_TRADABLE < e["yes_price"] < PRICE_MAX_TRADABLE]
     if not tradable:
@@ -207,23 +215,26 @@ def classify_signal(edges: List[dict]) -> dict:
     best_edge   = max(tradable, key=lambda e: e["edge"])
     worst_edge  = min(tradable, key=lambda e: e["edge"])
 
-    # מועמדים לקנייה: רק buckets שגם סבירים מספיק אצלנו
-    buy_candidates = [e for e in tradable
-                      if e["our_prob"] >= MIN_PROB_FOR_BUY]
-    qualified_best = (max(buy_candidates, key=lambda e: e["edge"])
-                      if buy_candidates else None)
-
-    # קביעת הפעולה
+    # האסטרטגיה הראשית: most_likely.
+    # האם הוא עובר את שני התנאים: הסתברות וגם יתרון?
     action, best = "HOLD", None
-    if qualified_best is not None:
-        if qualified_best["edge"] >= EDGE_THRESHOLD_STRONG:
-            action, best = "STRONG_BUY", qualified_best
-        elif qualified_best["edge"] >= EDGE_THRESHOLD_BUY:
-            action, best = "BUY", qualified_best
+    ml_qualifies = (
+        most_likely["our_prob"] >= MIN_PROB_FOR_BUY
+        and most_likely["edge"] >= EDGE_THRESHOLD_BUY
+    )
+    if ml_qualifies:
+        if most_likely["edge"] >= EDGE_THRESHOLD_STRONG:
+            action, best = "STRONG_BUY", most_likely
+        else:
+            action, best = "BUY", most_likely
 
-    # אם אין הזדמנות קנייה מוצדקת — בדוק תמחור-יתר
+    # אם most_likely לא עובר — בדוק תמחור-יתר חמור על המודל הסביר
     if best is None and worst_edge["edge"] <= -EDGE_THRESHOLD_BUY:
         action, best = "AVOID", worst_edge
+
+    # qualified_best — שמור על השם הישן כדי לא לשבור צרכנים אחרים;
+    # מציין את ה-bucket שמצדיק את הפעולה (אם בכלל)
+    qualified_best = best if action in ("BUY", "STRONG_BUY") else None
 
     return {
         "action":         action,
@@ -244,30 +255,40 @@ def _describe_bucket(e: dict) -> str:
 
 
 def _rationale(action: str, best, most_likely, best_edge, qualified_best) -> str:
-    ml_part = (f"ה-bucket הסביר ביותר לפי המודל הוא "
-               f"{_describe_bucket(most_likely)}.")
+    """
+    הנמקה תחת המדיניות החדשה: most_likely הוא הראשי. אם יש BUY,
+    זה אוטומטית על most_likely. max_edge יכול להיות חלופה עם יתרון
+    גדול יותר אבל פחות סביר.
+    """
     if action in ("STRONG_BUY", "BUY") and best is not None:
-        core = (f"החוזה {_describe_bucket(best)}: "
+        core = (f"החוזה הסביר ביותר {_describe_bucket(best)}: "
                 f"יתרון {best['edge']*100:+.2f}%, "
                 f"Kelly≈{best['kelly']*100:.1f}% מהבנקרול, "
-                f"EV={best['ev']*100:+.1f}%.")
-        if best_edge is not None and best_edge is not best:
-            extra = (f" קיים bucket עם יתרון גבוה יותר "
-                     f"({_describe_bucket(best_edge)}, "
-                     f"יתרון {best_edge['edge']*100:+.2f}%) — "
-                     f"אך ההסתברות שלו מתחת ל-30% ולכן סוננה.")
+                f"EV={best['ev']*100:+.1f}%. "
+                f"זה הסיגנל הראשי כי עוקב אחרי ה-bucket עם ההסתברות הגבוהה ביותר.")
+        # אם max_edge הוא bucket אחר עם יתרון גבוה יותר, מציעים אותו כחלופה
+        if best_edge is not None and best_edge is not best \
+                and best_edge["edge"] > best["edge"] + 0.05:
+            extra = (f" חלופה: bucket {_describe_bucket(best_edge)} מציע "
+                     f"יתרון גדול יותר ({best_edge['edge']*100:+.2f}%) "
+                     f"אך עם הסתברות נמוכה יותר — סיכון/תמורה גבוה יותר.")
             core += extra
-        return f"{core} {ml_part}"
+        return core
 
     if action == "AVOID" and best is not None:
+        ml_part = (f"ה-bucket הסביר ביותר הוא {_describe_bucket(most_likely)}.")
         return (f"השוק מתמחר יתר את {_describe_bucket(best)} "
                 f"(יתרון {best['edge']*100:+.2f}%). עדיף לקנות NO או להתרחק. "
                 f"{ml_part}")
 
     # HOLD
-    if qualified_best is None and best_edge is not None and best_edge['edge'] >= EDGE_THRESHOLD_BUY:
-        return (f"היתרון הגדול ביותר הוא ב-{_describe_bucket(best_edge)} "
-                f"({best_edge['edge']*100:+.2f}%), אך ההסתברות שלו נמוכה "
-                f"מסף הפעולה (30%) — לכן לא ממליצים לקנות. {ml_part}")
-    return (f"אין יתרון מספיק כדי להצדיק פעולה "
-            f"(סף 3% ביתרון + 30% בהסתברות). {ml_part}")
+    ml_str = _describe_bucket(most_likely) if most_likely else "—"
+    ml_edge = (most_likely.get('edge', 0) * 100) if most_likely else 0
+    if most_likely and most_likely["our_prob"] < MIN_PROB_FOR_BUY:
+        return (f"ה-bucket הסביר ביותר הוא {ml_str} אבל ההסתברות שלו "
+                f"מתחת לסף הקנייה (30%). אין אמון מספק להמליץ.")
+    if most_likely and most_likely["edge"] < EDGE_THRESHOLD_BUY:
+        return (f"ה-bucket הסביר ביותר הוא {ml_str} עם יתרון של {ml_edge:+.2f}% — "
+                f"מתחת לסף 3%. השוק מתמחר אותו פחות-או-יותר נכון, "
+                f"אין הזדמנות אמיתית.")
+    return f"אין יתרון מספיק כדי להצדיק פעולה. ה-bucket הסביר ביותר: {ml_str}."
