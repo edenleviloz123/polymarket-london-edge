@@ -114,7 +114,7 @@ def run_city_date(city: dict, target_date: dt.date, forecasts: dict,
         edges = compute_edges(contracts, cons["mean"], cons["std"],
                               observation=observation,
                               ensemble_std=ensemble_std)
-        signal = classify_signal(edges)
+        signal = classify_signal(edges, ensemble=ensemble)
     elif cons["n"] < MIN_MODELS_REQUIRED:
         signal["rationale"] = (
             f"רק {cons['n']}/{len(cons.get('all_models') or {})} מודלים זמינים — "

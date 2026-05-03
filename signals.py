@@ -14,10 +14,35 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
+from zoneinfo import ZoneInfo
+
 from config import (
-    EDGE_THRESHOLD_BUY, KELLY_FRACTION, MIN_PROB_FOR_BUY,
-    PAPER_BANKROLL_USD, SIGNALS_LOG, USER_TZ,
+    CITIES, EDGE_THRESHOLD_BUY, KELLY_FRACTION, MIN_PROB_FOR_BUY,
+    PAPER_BANKROLL_USD, SIGNALS_LOG, TIME_OF_DAY_BUCKETS, USER_TZ,
 )
+
+# מיפוי מהיר: city_key -> ZoneInfo
+_CITY_TZ = {c["key"]: ZoneInfo(c["timezone"]) for c in CITIES}
+
+
+def _hour_in_city(ts_iso: str, city_key: str) -> Optional[int]:
+    try:
+        d = dt.datetime.fromisoformat(ts_iso)
+        tz = _CITY_TZ.get(city_key)
+        if tz is None:
+            return None
+        return d.astimezone(tz).hour
+    except Exception:
+        return None
+
+
+def _time_of_day_bucket(hour: Optional[int]) -> Optional[str]:
+    if hour is None:
+        return None
+    for name, start, end in TIME_OF_DAY_BUCKETS:
+        if start <= hour < end:
+            return name
+    return None
 
 # שמות האסטרטגיות — שני תיקים מדומים מקבילים
 STRATEGY_MAX_EDGE    = "max_edge"    # הימור על הפער הגדול ביותר
@@ -118,6 +143,8 @@ def _record_one(city_key: str, target_date: dt.date, strategy: str,
 
     minutes_to_close = _minutes_to_close(ts_iso, event_end)
     timing = _timing_bucket(minutes_to_close)
+    hour_local = _hour_in_city(ts_iso, city_key)
+    time_of_day = _time_of_day_bucket(hour_local)
 
     rows.append({
         "id":                sid,
@@ -137,6 +164,8 @@ def _record_one(city_key: str, target_date: dt.date, strategy: str,
         "stake_usd":         stake_usd,
         "minutes_to_close":  minutes_to_close,
         "timing":            timing,
+        "hour_local":        hour_local,
+        "time_of_day":       time_of_day,
         "status":            "pending",
         "outcome_pnl":       None,
         "observed_max":      None,
@@ -296,6 +325,12 @@ def compute_performance() -> dict:
         t_rows = [r for r in rows if r.get("timing") == t_name]
         by_timing[t_name] = _aggregate(t_rows)
 
+    # פיצול לפי שעת-היום בעיר ברגע הרישום (night/morning/noon/...)
+    by_time_of_day: Dict[str, dict] = {}
+    for tod_name, _, _ in TIME_OF_DAY_BUCKETS:
+        tod_rows = [r for r in rows if r.get("time_of_day") == tod_name]
+        by_time_of_day[tod_name] = _aggregate(tod_rows)
+
     # פיצול לפי עיר (על כל האסטרטגיות)
     per_city: Dict[str, dict] = {}
     for r in rows:
@@ -315,9 +350,10 @@ def compute_performance() -> dict:
 
     result = {
         **all_agg,
-        "by_strategy": by_strategy,
-        "by_timing":   by_timing,
-        "per_city":    per_city,
-        "recent":      rows[-10:],
+        "by_strategy":    by_strategy,
+        "by_timing":      by_timing,
+        "by_time_of_day": by_time_of_day,
+        "per_city":       per_city,
+        "recent":         rows[-10:],
     }
     return result

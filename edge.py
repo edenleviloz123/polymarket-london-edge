@@ -10,6 +10,7 @@ from scipy.stats import norm
 
 from config import (
     EDGE_THRESHOLD_BUY, EDGE_THRESHOLD_STRONG,
+    ENSEMBLE_AGREEMENT_MAX_C,
     MIN_PROB_FOR_BUY, MIN_SIGMA,
     PRICE_MAX_TRADABLE, PRICE_MIN_TRADABLE,
 )
@@ -178,7 +179,8 @@ def compute_edges(contracts: List[dict], mu: float, sigma: Optional[float],
     return results
 
 
-def classify_signal(edges: List[dict]) -> dict:
+def classify_signal(edges: List[dict],
+                     ensemble: Optional[dict] = None) -> dict:
     """
     האסטרטגיה הראשית: most_likely (ה-bucket עם ההסתברות הגבוהה ביותר).
     בנתונים שצברנו, אסטרטגיה זו נתנה ROI עקבי של ~25% לעומת ~9% של max_edge,
@@ -214,6 +216,22 @@ def classify_signal(edges: List[dict]) -> dict:
     most_likely = max(tradable, key=lambda e: e["our_prob"])
     best_edge   = max(tradable, key=lambda e: e["edge"])
     worst_edge  = min(tradable, key=lambda e: e["edge"])
+
+    # סינון אנסמבלים: אם ECMWF ו-GEFS לא מסכימים, אי-הוודאות גבוהה מדי
+    if ensemble:
+        agreement = ensemble.get("agreement_c")
+        if agreement is not None and agreement > ENSEMBLE_AGREEMENT_MAX_C:
+            return {
+                "action":         "HOLD",
+                "best":           None,
+                "most_likely":    most_likely,
+                "best_edge":      best_edge,
+                "qualified_best": None,
+                "rationale":      (f"חוסר הסכמה בין האנסמבלים — פער של "
+                                    f"{agreement:.2f}°C בין ECMWF ל-GEFS, "
+                                    f"מעבר לסף ההסכמה ({ENSEMBLE_AGREEMENT_MAX_C}°C). "
+                                    f"אי-הוודאות גבוהה מדי, אין קנייה."),
+            }
 
     # האסטרטגיה הראשית: most_likely.
     # האם הוא עובר את שני התנאים: הסתברות וגם יתרון?

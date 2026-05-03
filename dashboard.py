@@ -227,6 +227,52 @@ def _render_performance(perf: Optional[dict]) -> str:
         </table>
         """
 
+    # פיצול לפי שעת-היום של הרישום (night/morning/noon/afternoon/evening)
+    TOD_LABEL = {
+        "night":     "לילה (00-06)",
+        "morning":   "בוקר (06-12)",
+        "noon":      "צהריים (12-16)",
+        "afternoon": "אחה״צ (16-20)",
+        "evening":   "ערב (20-24)",
+    }
+    tod_rows_html = []
+    by_tod = perf.get("by_time_of_day") or {}
+    for tod_name in ("night", "morning", "noon", "afternoon", "evening"):
+        t = by_tod.get(tod_name) or {}
+        if t.get("total", 0) == 0:
+            continue
+        t_pnl = t.get("realized_pnl") or 0
+        cls = "pos" if t_pnl > 0 else ("neg" if t_pnl < 0 else "")
+        wr = t.get("win_rate")
+        wr_txt = f"{wr*100:.0f}%" if wr is not None else "—"
+        roi = t.get("roi_on_settled_stake")
+        roi_txt = f"{roi*100:+.1f}%" if roi is not None else "—"
+        tod_rows_html.append(
+            f'<tr>'
+            f'<td class="t-label">{_esc(TOD_LABEL[tod_name])}</td>'
+            f'<td>{t.get("total",0)}</td>'
+            f'<td>{t.get("won",0)}</td>'
+            f'<td>{t.get("lost",0)}</td>'
+            f'<td>{t.get("pending",0)}</td>'
+            f'<td>{wr_txt}</td>'
+            f'<td class="{cls}">${t_pnl:+.2f}</td>'
+            f'<td>{roi_txt}</td>'
+            f'</tr>'
+        )
+    tod_table = ""
+    if tod_rows_html:
+        tod_table = f"""
+        <h3 class="perf__sub">פיצול לפי שעת-היום של הרישום</h3>
+        <p class="muted small">כל איתות מתויג לפי השעה המקומית של העיר ברגע שנרשם. ננסה לזהות אם יש שעות שבהן המודל "פוגע" יותר טוב — למשל אם בוקר מוקדם רעש גדול יותר מהצהריים.</p>
+        <table class="perf">
+          <thead><tr>
+            <th>שעה</th><th>סה"כ</th><th>זכיות</th><th>הפסדים</th>
+            <th>פתוחים</th><th>אחוז זכייה</th><th>P&L</th><th>ROI</th>
+          </tr></thead>
+          <tbody>{"".join(tod_rows_html)}</tbody>
+        </table>
+        """
+
     per_city_rows = []
     for city_key, slot in (perf.get("per_city") or {}).items():
         cls = "pos" if (slot["pnl"] or 0) > 0 else ("neg" if (slot["pnl"] or 0) < 0 else "")
@@ -268,6 +314,7 @@ def _render_performance(perf: Optional[dict]) -> str:
       </div>
       {strat_table}
       {timing_table}
+      {tod_table}
       {city_table}
     </section>
     """

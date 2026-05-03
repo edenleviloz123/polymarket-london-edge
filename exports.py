@@ -78,6 +78,7 @@ def export_signals_csv() -> int:
             "bucket_type", "bucket_temp", "our_prob", "yes_price",
             "edge", "kelly", "ev", "stake_usd",
             "minutes_to_close", "timing",
+            "hour_local", "time_of_day",
             "status", "outcome_pnl", "observed_max", "settled_at",
         ])
         for r in rows:
@@ -90,6 +91,7 @@ def export_signals_csv() -> int:
                 r.get("edge"), r.get("kelly"), r.get("ev"),
                 r.get("stake_usd"),
                 r.get("minutes_to_close"), r.get("timing"),
+                r.get("hour_local"), r.get("time_of_day"),
                 r.get("status"), r.get("outcome_pnl"),
                 r.get("observed_max"), r.get("settled_at"),
             ])
