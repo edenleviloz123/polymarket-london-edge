@@ -117,7 +117,8 @@ def _timing_bucket(minutes: Optional[int]) -> Optional[str]:
 
 def _record_one(city_key: str, target_date: dt.date, strategy: str,
                  bucket_edge: dict, action: str, ts_iso: str,
-                 event_end: Optional[str] = None) -> None:
+                 event_end: Optional[str] = None,
+                 persistence_minutes: Optional[float] = None) -> None:
     """רישום עסקה מדומה אחת עבור אסטרטגיה מסוימת."""
     bucket = bucket_edge.get("bucket") or {}
     label = bucket.get("label")
@@ -166,6 +167,7 @@ def _record_one(city_key: str, target_date: dt.date, strategy: str,
         "timing":            timing,
         "hour_local":        hour_local,
         "time_of_day":       time_of_day,
+        "persistence_minutes": persistence_minutes,
         "status":            "pending",
         "outcome_pnl":       None,
         "observed_max":      None,
@@ -190,16 +192,18 @@ def record_signals(city_key: str, target_date: dt.date, signal: dict,
     אם שתי האסטרטגיות מצביעות על אותו bucket, רושמים פעם אחת תחת
     most_likely (כי הוא הוגדר כראשי).
     """
+    from candidates import is_qualified   # מאוחר כדי למנוע מעגליות
+    from config import PERSISTENCE_MIN_MINUTES
+
     most_likely = signal.get("most_likely") or {}
     best_edge   = signal.get("best_edge") or {}
 
-    # סדר הבדיקה: most_likely קודם (מקבל עדיפות אם אותו bucket)
-    candidates = [
+    candidates_list = [
         (STRATEGY_MOST_LIKELY, most_likely),
         (STRATEGY_MAX_EDGE,    best_edge),
     ]
     seen_labels = set()
-    for strategy_name, candidate in candidates:
+    for strategy_name, candidate in candidates_list:
         if not candidate:
             continue
         label = (candidate.get("bucket") or {}).get("label")
@@ -212,8 +216,23 @@ def record_signals(city_key: str, target_date: dt.date, signal: dict,
         if prob_v < MIN_PROB_FOR_BUY:
             continue
         action = "STRONG_BUY" if edge_v >= 0.08 else "BUY"
+
+        # סינון התמדה — איתות חייב להתמיד לפני שייכנס לרישום
+        qualified, age = is_qualified(strategy_name, city_key,
+                                        target_date, label, ts_iso)
+        if not qualified:
+            log.info("[persistence] %s|%s|%s|%s ממתין — גיל %.1f דק' "
+                     "(סף %d דק')",
+                     strategy_name, city_key,
+                     target_date.isoformat() if not isinstance(target_date, str) else target_date,
+                     label, age, PERSISTENCE_MIN_MINUTES)
+            seen_labels.add(label)
+            continue
+
         _record_one(city_key, target_date, strategy_name,
-                     candidate, action, ts_iso, event_end=event_end)
+                     candidate, action, ts_iso,
+                     event_end=event_end,
+                     persistence_minutes=age)
         seen_labels.add(label)
 
 
