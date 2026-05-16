@@ -1,46 +1,5 @@
 [
   {
-    "ts": "2026-05-16T16:50:26.911942+01:00",
-    "rows": [
-      {
-        "city": "london",
-        "target_date": "2026-05-16",
-        "action": "HOLD",
-        "best_label": null,
-        "best_edge": null,
-        "mu": 14.255327059243402,
-        "sigma": 0.6192923724814345
-      },
-      {
-        "city": "london",
-        "target_date": "2026-05-17",
-        "action": "AVOID",
-        "best_label": "16°C",
-        "best_edge": -0.15175743084064974,
-        "mu": 15.855327059243404,
-        "sigma": 0.2110572231546104
-      },
-      {
-        "city": "paris",
-        "target_date": "2026-05-16",
-        "action": "HOLD",
-        "best_label": null,
-        "best_edge": null,
-        "mu": 14.98558488349031,
-        "sigma": 0.4607623753020951
-      },
-      {
-        "city": "paris",
-        "target_date": "2026-05-17",
-        "action": "AVOID",
-        "best_label": "16°C",
-        "best_edge": -0.11105971067009285,
-        "mu": 14.725584883490308,
-        "sigma": 0.2611837804541252
-      }
-    ]
-  },
-  {
     "ts": "2026-05-16T16:55:30.113862+01:00",
     "rows": [
       {
@@ -3932,6 +3891,47 @@
         "best_edge": -0.09132131640371544,
         "mu": 15.224725670645645,
         "sigma": 1.173592316604172
+      }
+    ]
+  },
+  {
+    "ts": "2026-05-17T00:45:29.300480+01:00",
+    "rows": [
+      {
+        "city": "london",
+        "target_date": "2026-05-17",
+        "action": "STRONG_BUY",
+        "best_label": "16°C",
+        "best_edge": 0.4170031723758453,
+        "mu": 16.15296905012903,
+        "sigma": 0.46369648537488856
+      },
+      {
+        "city": "london",
+        "target_date": "2026-05-18",
+        "action": "HOLD",
+        "best_label": null,
+        "best_edge": null,
+        "mu": 14.172969050129032,
+        "sigma": 1.1343872626993086
+      },
+      {
+        "city": "paris",
+        "target_date": "2026-05-17",
+        "action": "STRONG_BUY",
+        "best_label": "15°C",
+        "best_edge": 0.3874574634786866,
+        "mu": 15.724725670645645,
+        "sigma": 0.7447079420720787
+      },
+      {
+        "city": "paris",
+        "target_date": "2026-05-18",
+        "action": "BUY",
+        "best_label": "15°C",
+        "best_edge": 0.03490982136826343,
+        "mu": 15.364725670645646,
+        "sigma": 0.9352616733894057
       }
     ]
   }
