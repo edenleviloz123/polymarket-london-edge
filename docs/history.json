@@ -1,46 +1,5 @@
 [
   {
-    "ts": "2026-05-26T15:20:39.150339+01:00",
-    "rows": [
-      {
-        "city": "london",
-        "target_date": "2026-05-26",
-        "action": "NO_DATA",
-        "best_label": null,
-        "best_edge": null,
-        "mu": null,
-        "sigma": null
-      },
-      {
-        "city": "london",
-        "target_date": "2026-05-27",
-        "action": "NO_DATA",
-        "best_label": null,
-        "best_edge": null,
-        "mu": null,
-        "sigma": null
-      },
-      {
-        "city": "paris",
-        "target_date": "2026-05-26",
-        "action": "NO_DATA",
-        "best_label": null,
-        "best_edge": null,
-        "mu": null,
-        "sigma": null
-      },
-      {
-        "city": "paris",
-        "target_date": "2026-05-27",
-        "action": "NO_DATA",
-        "best_label": null,
-        "best_edge": null,
-        "mu": null,
-        "sigma": null
-      }
-    ]
-  },
-  {
     "ts": "2026-05-26T15:29:05.769803+01:00",
     "rows": [
       {
@@ -3932,6 +3891,47 @@
         "best_edge": -0.10758513623876048,
         "mu": 31.644871246150455,
         "sigma": 1.4439684044135095
+      }
+    ]
+  },
+  {
+    "ts": "2026-05-26T23:30:29.399474+01:00",
+    "rows": [
+      {
+        "city": "london",
+        "target_date": "2026-05-26",
+        "action": "HOLD",
+        "best_label": null,
+        "best_edge": null,
+        "mu": 34.03007931760939,
+        "sigma": 0.3266601253697155
+      },
+      {
+        "city": "london",
+        "target_date": "2026-05-27",
+        "action": "HOLD",
+        "best_label": null,
+        "best_edge": null,
+        "mu": 26.0283851883423,
+        "sigma": 1.1783866067291202
+      },
+      {
+        "city": "paris",
+        "target_date": "2026-05-27",
+        "action": "STRONG_BUY",
+        "best_label": "31°C",
+        "best_edge": 0.5994997361036416,
+        "mu": 30.96487124615046,
+        "sigma": 1.0701131560422392
+      },
+      {
+        "city": "paris",
+        "target_date": "2026-05-28",
+        "action": "AVOID",
+        "best_label": "33°C",
+        "best_edge": -0.2341472618192822,
+        "mu": 30.479533084419085,
+        "sigma": 0.48468200350625473
       }
     ]
   }
