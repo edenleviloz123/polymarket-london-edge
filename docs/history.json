@@ -1,46 +1,5 @@
 [
   {
-    "ts": "2026-05-26T15:00:47.605864+01:00",
-    "rows": [
-      {
-        "city": "london",
-        "target_date": "2026-05-26",
-        "action": "NO_DATA",
-        "best_label": null,
-        "best_edge": null,
-        "mu": null,
-        "sigma": null
-      },
-      {
-        "city": "london",
-        "target_date": "2026-05-27",
-        "action": "NO_DATA",
-        "best_label": null,
-        "best_edge": null,
-        "mu": null,
-        "sigma": null
-      },
-      {
-        "city": "paris",
-        "target_date": "2026-05-26",
-        "action": "NO_DATA",
-        "best_label": null,
-        "best_edge": null,
-        "mu": null,
-        "sigma": null
-      },
-      {
-        "city": "paris",
-        "target_date": "2026-05-27",
-        "action": "NO_DATA",
-        "best_label": null,
-        "best_edge": null,
-        "mu": null,
-        "sigma": null
-      }
-    ]
-  },
-  {
     "ts": "2026-05-26T15:06:34.285199+01:00",
     "rows": [
       {
@@ -3896,6 +3855,47 @@
   },
   {
     "ts": "2026-05-26T23:05:24.265267+01:00",
+    "rows": [
+      {
+        "city": "london",
+        "target_date": "2026-05-26",
+        "action": "HOLD",
+        "best_label": null,
+        "best_edge": null,
+        "mu": 34.03007931760939,
+        "sigma": 0.3266601253697155
+      },
+      {
+        "city": "london",
+        "target_date": "2026-05-27",
+        "action": "HOLD",
+        "best_label": null,
+        "best_edge": null,
+        "mu": 26.53810332786905,
+        "sigma": 0.7238901862866899
+      },
+      {
+        "city": "paris",
+        "target_date": "2026-05-27",
+        "action": "STRONG_BUY",
+        "best_label": "31°C",
+        "best_edge": 0.5423751994478643,
+        "mu": 31.004871246150458,
+        "sigma": 1.0714171381431603
+      },
+      {
+        "city": "paris",
+        "target_date": "2026-05-28",
+        "action": "AVOID",
+        "best_label": "33°C",
+        "best_edge": -0.11094355250470195,
+        "mu": 31.66487124615046,
+        "sigma": 1.469063570641149
+      }
+    ]
+  },
+  {
+    "ts": "2026-05-26T23:10:27.429972+01:00",
     "rows": [
       {
         "city": "london",
