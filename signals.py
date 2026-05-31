@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from config import (
+    BLACKLIST_ENABLED, BLACKLIST_MAX_WR, BLACKLIST_MIN_N,
     CITIES, EDGE_THRESHOLD_BUY, KELLY_FRACTION, MIN_PROB_FOR_BUY,
     PAPER_BANKROLL_USD, SIGNALS_LOG, TIME_OF_DAY_BUCKETS, USER_TZ,
 )
@@ -42,6 +43,68 @@ def _time_of_day_bucket(hour: Optional[int]) -> Optional[str]:
     for name, start, end in TIME_OF_DAY_BUCKETS:
         if start <= hour < end:
             return name
+    return None
+
+
+def compute_blacklist() -> List[Dict[str, Any]]:
+    """
+    מחזיר רשימת (עיר, bucket_temp) שלפי ההיסטוריה הם 'בור' שיש להימנע ממנו.
+    הקריטריון: לפחות BLACKLIST_MIN_N הימורים סגורים וגם אחוז זכייה
+    מתחת ל-BLACKLIST_MAX_WR. הרשימה מתעדכנת אוטומטית מתוך signals.jsonl.
+    """
+    if not BLACKLIST_ENABLED or not os.path.exists(SIGNALS_LOG):
+        return []
+    stats: Dict[tuple, Dict[str, int]] = {}
+    with open(SIGNALS_LOG, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            st = r.get("status")
+            if st not in ("won", "lost"):
+                continue
+            city = r.get("city")
+            temp = r.get("bucket_temp")
+            if not city or temp is None:
+                continue
+            key = (city, temp)
+            slot = stats.setdefault(key, {"won": 0, "lost": 0, "pnl": 0.0})
+            slot[st] += 1
+            slot["pnl"] += float(r.get("outcome_pnl") or 0)
+
+    out = []
+    for (city, temp), slot in stats.items():
+        n = slot["won"] + slot["lost"]
+        if n < BLACKLIST_MIN_N:
+            continue
+        wr = slot["won"] / n
+        if wr >= BLACKLIST_MAX_WR:
+            continue
+        out.append({
+            "city":         city,
+            "bucket_temp":  temp,
+            "n":            n,
+            "won":          slot["won"],
+            "lost":         slot["lost"],
+            "win_rate":     wr,
+            "pnl":          round(slot["pnl"], 2),
+        })
+    # מיון: רע ביותר תחילה
+    out.sort(key=lambda r: r["win_rate"])
+    return out
+
+
+def is_blacklisted(city_key: str, bucket_temp: Optional[int]) -> Optional[dict]:
+    """מחזיר את שורת הרשימה השחורה אם (עיר, bucket) חסומים, אחרת None."""
+    if bucket_temp is None:
+        return None
+    for row in compute_blacklist():
+        if row["city"] == city_key and row["bucket_temp"] == bucket_temp:
+            return row
     return None
 
 # שמות האסטרטגיות — שני תיקים מדומים מקבילים
@@ -215,6 +278,21 @@ def record_signals(city_key: str, target_date: dt.date, signal: dict,
             continue
         if prob_v < MIN_PROB_FOR_BUY:
             continue
+
+        # רשימה שחורה דינמית: (עיר, bucket_temp) שכשלו שיטתית בעבר
+        bucket_temp = (candidate.get("bucket") or {}).get("temp")
+        bl_row = is_blacklisted(city_key, bucket_temp)
+        if bl_row:
+            log.info("[blacklist] %s|%s|%s|%s דילוג — היסטוריה: "
+                     "%d/%d ניצחו (%.0f%% WR, %s$)",
+                     strategy_name, city_key,
+                     target_date.isoformat() if not isinstance(target_date, str) else target_date,
+                     label, bl_row["won"], bl_row["n"],
+                     bl_row["win_rate"] * 100,
+                     ("+" if bl_row["pnl"] > 0 else "") + str(bl_row["pnl"]))
+            seen_labels.add(label)
+            continue
+
         action = "STRONG_BUY" if edge_v >= 0.08 else "BUY"
 
         # סינון התמדה — איתות חייב להתמיד לפני שייכנס לרישום

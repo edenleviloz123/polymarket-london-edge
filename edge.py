@@ -11,7 +11,7 @@ from scipy.stats import norm
 from config import (
     EDGE_THRESHOLD_BUY, EDGE_THRESHOLD_STRONG,
     ENSEMBLE_AGREEMENT_MAX_C,
-    MIN_PROB_FOR_BUY, MIN_SIGMA,
+    MAX_PROB_FOR_BUY, MIN_PRICE_FOR_BUY, MIN_PROB_FOR_BUY, MIN_SIGMA,
     PRICE_MAX_TRADABLE, PRICE_MIN_TRADABLE,
 )
 
@@ -233,9 +233,32 @@ def classify_signal(edges: List[dict],
                                     f"אי-הוודאות גבוהה מדי, אין קנייה."),
             }
 
+    # סינוני איכות שנלמדו מההיסטוריה (תוצרי ניתוח 288 איתותים):
+    # 1) חסום הימור עם prob >= 95% — 0/7 ניצחו כשהמערכת אמרה "100% בטוח"
+    # 2) חסום הימור עם מחיר שוק < 5% — 0/20 ניצחו במחירים האלה
+    def _quality_filter_reason(b):
+        if b is None:
+            return None
+        if b["our_prob"] >= MAX_PROB_FOR_BUY:
+            return f"הסתברות גבוהה מדי ({b['our_prob']*100:.0f}% ≥ {MAX_PROB_FOR_BUY*100:.0f}%)"
+        if b["yes_price"] < MIN_PRICE_FOR_BUY:
+            return f"מחיר שוק נמוך מדי ({b['yes_price']*100:.1f}% < {MIN_PRICE_FOR_BUY*100:.0f}%)"
+        return None
+
     # האסטרטגיה הראשית: most_likely.
     # האם הוא עובר את שני התנאים: הסתברות וגם יתרון?
     action, best = "HOLD", None
+    filter_reason = _quality_filter_reason(most_likely)
+    if filter_reason:
+        return {
+            "action":         "HOLD",
+            "best":           None,
+            "most_likely":    most_likely,
+            "best_edge":      best_edge,
+            "qualified_best": None,
+            "rationale":      (f"סינון איכות חסם את ההזדמנות: {filter_reason}. "
+                                f"מבוסס על ניתוח 288 איתותים היסטוריים."),
+        }
     ml_qualifies = (
         most_likely["our_prob"] >= MIN_PROB_FOR_BUY
         and most_likely["edge"] >= EDGE_THRESHOLD_BUY

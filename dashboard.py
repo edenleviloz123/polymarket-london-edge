@@ -609,6 +609,43 @@ def _accuracy_table(scores_block: dict, title: str, intro: str = "") -> str:
     """
 
 
+def _render_blacklist(bl: Optional[list]) -> str:
+    """פאנל המראה אילו (עיר, °C) חסומים אוטומטית בגלל היסטוריה גרועה."""
+    if not bl:
+        return ""
+    rows = []
+    for r in bl:
+        pnl = r.get("pnl") or 0
+        pnl_cls = "neg" if pnl < 0 else ("pos" if pnl > 0 else "")
+        rows.append(
+            f'<tr>'
+            f'<td class="t-label">{_esc(r.get("city"))}</td>'
+            f'<td>{_esc(r.get("bucket_temp"))}°C</td>'
+            f'<td>{r.get("won",0)}</td>'
+            f'<td>{r.get("lost",0)}</td>'
+            f'<td>{r.get("win_rate",0)*100:.0f}%</td>'
+            f'<td class="{pnl_cls}">${pnl:+.2f}</td>'
+            f'</tr>'
+        )
+    return f"""
+    <section class="card card--bl">
+      <h2>רשימה שחורה דינמית — buckets שכשלו שיטתית</h2>
+      <p class="muted small">
+        (עיר, °C) שיש להם לפחות 5 הימורים סגורים והפסידו ביותר מ-75% מהם.
+        המערכת לא תרשום הימור חדש על השילובים האלה. הרשימה מתעדכנת
+        אוטומטית — אם אחד מהם יתחיל להצליח בעתיד, הוא ייצא מהרשימה.
+      </p>
+      <table class="acc">
+        <thead><tr>
+          <th>עיר</th><th>bucket</th><th>זכיות</th><th>הפסדים</th>
+          <th>אחוז זכייה</th><th>P&L מצטבר</th>
+        </tr></thead>
+        <tbody>{"".join(rows)}</tbody>
+      </table>
+    </section>
+    """
+
+
 def _render_accuracy(acc: Optional[dict]) -> str:
     if not acc or not (acc.get("global") or {}).get("days_measured"):
         return """
@@ -900,6 +937,8 @@ def render_dashboard(payload: dict) -> str:
   {city_cards}
 
   {_render_accuracy(payload.get("accuracy"))}
+
+  {_render_blacklist(payload.get("blacklist"))}
 
   <section class="exports">
     <h2>הורדת נתונים</h2>

@@ -42,7 +42,8 @@ from markets import (
 )
 from metar import fetch_metar_observations
 from signals import (
-    compute_performance, record_signals, settle_pending_signals,
+    compute_blacklist, compute_performance, record_signals,
+    settle_pending_signals,
 )
 from weather import (
     consensus, detect_outliers,
@@ -295,6 +296,15 @@ def main():
     except Exception as e:
         log.warning("חישוב ביצועים נכשל: %s", e)
         performance = None
+    try:
+        blacklist = compute_blacklist()
+        if blacklist:
+            log.info("רשימה שחורה פעילה: %d (city, bucket): %s",
+                     len(blacklist),
+                     ", ".join(f"{r['city']} {r['bucket_temp']}°C" for r in blacklist))
+    except Exception as e:
+        log.warning("חישוב רשימה שחורה נכשל: %s", e)
+        blacklist = []
 
     payload = {
         "generated_at":         ts_iso,
@@ -308,6 +318,7 @@ def main():
         "cities":               cities_data,
         "accuracy":             accuracy,
         "performance":          performance,
+        "blacklist":            blacklist,
     }
 
     with open(OUTPUT_JSON, "w", encoding="utf-8") as f:
