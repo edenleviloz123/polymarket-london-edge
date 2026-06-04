@@ -1,46 +1,5 @@
 [
   {
-    "ts": "2026-06-04T15:05:53.277111+01:00",
-    "rows": [
-      {
-        "city": "london",
-        "target_date": "2026-06-04",
-        "action": "NO_DATA",
-        "best_label": null,
-        "best_edge": null,
-        "mu": null,
-        "sigma": null
-      },
-      {
-        "city": "london",
-        "target_date": "2026-06-05",
-        "action": "NO_DATA",
-        "best_label": null,
-        "best_edge": null,
-        "mu": null,
-        "sigma": null
-      },
-      {
-        "city": "paris",
-        "target_date": "2026-06-04",
-        "action": "NO_DATA",
-        "best_label": null,
-        "best_edge": null,
-        "mu": null,
-        "sigma": null
-      },
-      {
-        "city": "paris",
-        "target_date": "2026-06-05",
-        "action": "NO_DATA",
-        "best_label": null,
-        "best_edge": null,
-        "mu": null,
-        "sigma": null
-      }
-    ]
-  },
-  {
     "ts": "2026-06-04T15:10:37.882004+01:00",
     "rows": [
       {
@@ -3932,6 +3891,47 @@
         "best_edge": 0.042798241812739,
         "mu": 18.939870444217096,
         "sigma": 0.5434607488928164
+      }
+    ]
+  },
+  {
+    "ts": "2026-06-04T23:00:35.616824+01:00",
+    "rows": [
+      {
+        "city": "london",
+        "target_date": "2026-06-04",
+        "action": "HOLD",
+        "best_label": null,
+        "best_edge": null,
+        "mu": 17.662687185921083,
+        "sigma": 1.0972714318100052
+      },
+      {
+        "city": "london",
+        "target_date": "2026-06-05",
+        "action": "AVOID",
+        "best_label": "19°C",
+        "best_edge": -0.10504693169477158,
+        "mu": 18.442687185921084,
+        "sigma": 0.5793525343533424
+      },
+      {
+        "city": "paris",
+        "target_date": "2026-06-05",
+        "action": "AVOID",
+        "best_label": "20°C",
+        "best_edge": -0.15745322832358977,
+        "mu": 18.939870444217096,
+        "sigma": 0.5434607488928164
+      },
+      {
+        "city": "paris",
+        "target_date": "2026-06-06",
+        "action": "NO_DATA",
+        "best_label": null,
+        "best_edge": null,
+        "mu": 20.55167045886205,
+        "sigma": 0.29766137648029745
       }
     ]
   }
