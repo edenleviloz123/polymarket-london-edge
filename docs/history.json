@@ -1,46 +1,5 @@
 [
   {
-    "ts": "2026-06-20T04:25:32.671970+01:00",
-    "rows": [
-      {
-        "city": "london",
-        "target_date": "2026-06-20",
-        "action": "HOLD",
-        "best_label": null,
-        "best_edge": null,
-        "mu": 26.769309835212347,
-        "sigma": 0.8073913535725763
-      },
-      {
-        "city": "london",
-        "target_date": "2026-06-21",
-        "action": "HOLD",
-        "best_label": null,
-        "best_edge": null,
-        "mu": 30.68930983521235,
-        "sigma": 1.0372903884548785
-      },
-      {
-        "city": "paris",
-        "target_date": "2026-06-20",
-        "action": "HOLD",
-        "best_label": null,
-        "best_edge": null,
-        "mu": 34.77023904707747,
-        "sigma": 0.8382821102902355
-      },
-      {
-        "city": "paris",
-        "target_date": "2026-06-21",
-        "action": "HOLD",
-        "best_label": null,
-        "best_edge": null,
-        "mu": 37.245239047077476,
-        "sigma": 0.9985443466540547
-      }
-    ]
-  },
-  {
     "ts": "2026-06-20T04:30:44.279414+01:00",
     "rows": [
       {
@@ -3930,6 +3889,47 @@
         "action": "AVOID",
         "best_label": "37°C",
         "best_edge": -0.18287287519215406,
+        "mu": 35.4512784669367,
+        "sigma": 0.9850043281039291
+      }
+    ]
+  },
+  {
+    "ts": "2026-06-20T12:25:30.753520+01:00",
+    "rows": [
+      {
+        "city": "london",
+        "target_date": "2026-06-20",
+        "action": "AVOID",
+        "best_label": "25°C",
+        "best_edge": -0.045968328758167504,
+        "mu": 26.713616745072606,
+        "sigma": 0.5151493784048228
+      },
+      {
+        "city": "london",
+        "target_date": "2026-06-21",
+        "action": "HOLD",
+        "best_label": null,
+        "best_edge": null,
+        "mu": 29.793616745072608,
+        "sigma": 1.277367899893387
+      },
+      {
+        "city": "paris",
+        "target_date": "2026-06-20",
+        "action": "HOLD",
+        "best_label": null,
+        "best_edge": null,
+        "mu": 35.12294106986309,
+        "sigma": 0.6979379438629285
+      },
+      {
+        "city": "paris",
+        "target_date": "2026-06-21",
+        "action": "AVOID",
+        "best_label": "36°C",
+        "best_edge": -0.19271488032953688,
         "mu": 35.4512784669367,
         "sigma": 0.9850043281039291
       }
