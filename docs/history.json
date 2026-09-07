@@ -1,46 +1,5 @@
 [
   {
-    "ts": "2026-09-06T19:05:28.932883+01:00",
-    "rows": [
-      {
-        "city": "london",
-        "target_date": "2026-09-06",
-        "action": "NO_DATA",
-        "best_label": null,
-        "best_edge": null,
-        "mu": null,
-        "sigma": null
-      },
-      {
-        "city": "london",
-        "target_date": "2026-09-07",
-        "action": "NO_DATA",
-        "best_label": null,
-        "best_edge": null,
-        "mu": null,
-        "sigma": null
-      },
-      {
-        "city": "paris",
-        "target_date": "2026-09-06",
-        "action": "NO_DATA",
-        "best_label": null,
-        "best_edge": null,
-        "mu": null,
-        "sigma": null
-      },
-      {
-        "city": "paris",
-        "target_date": "2026-09-07",
-        "action": "NO_DATA",
-        "best_label": null,
-        "best_edge": null,
-        "mu": null,
-        "sigma": null
-      }
-    ]
-  },
-  {
     "ts": "2026-09-06T19:10:31.494179+01:00",
     "rows": [
       {
@@ -3896,6 +3855,47 @@
   },
   {
     "ts": "2026-09-07T03:00:43.106439+01:00",
+    "rows": [
+      {
+        "city": "london",
+        "target_date": "2026-09-07",
+        "action": "BUY",
+        "best_label": "24°C",
+        "best_edge": 0.05496832875816687,
+        "mu": 24.666431454316168,
+        "sigma": 0.5828197836477467
+      },
+      {
+        "city": "london",
+        "target_date": "2026-09-08",
+        "action": "AVOID",
+        "best_label": "19°C",
+        "best_edge": -0.16410050482711502,
+        "mu": 20.714664729101635,
+        "sigma": 0.8923755335373431
+      },
+      {
+        "city": "paris",
+        "target_date": "2026-09-07",
+        "action": "STRONG_BUY",
+        "best_label": "28°C",
+        "best_edge": 0.18745746347868664,
+        "mu": 28.157546989412406,
+        "sigma": 1.1846639011504503
+      },
+      {
+        "city": "paris",
+        "target_date": "2026-09-08",
+        "action": "AVOID",
+        "best_label": "24°C",
+        "best_edge": -0.2713069696251808,
+        "mu": 23.917546989412408,
+        "sigma": 0.9617215202698339
+      }
+    ]
+  },
+  {
+    "ts": "2026-09-07T03:05:26.492304+01:00",
     "rows": [
       {
         "city": "london",
